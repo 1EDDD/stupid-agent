@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PiAgent
+import PiJavaScript
 import PiAI
 import PiTools
 
@@ -57,9 +58,13 @@ public func systemPrompt(workspaceName: String, date: Date = Date(), containerAc
     - find: find files by glob pattern
     - grep: search file contents
     - sqlite: query a SQLite database read-only\(appsTool)
+    - web_search: search the web for current information
+    - web_fetch: read a web page or other URL
+    - javascript: run JavaScript for calculations and data processing; it can read workspace files but not change them
 
-    Paths are relative to the workspace root. There is no shell: you can't run programs. Read a file before you edit \
-    it, and prefer edit over rewriting a whole file. Keep answers short; the user reads them on a phone. Today is \(day).\(containers)
+    Paths are relative to the workspace root. There is no shell: you can't run programs, but javascript covers \
+    calculations, parsing and transforming data. Search the web for anything recent or that you're unsure of. Read a \
+    file before you edit it, and prefer edit over rewriting a whole file. Keep answers short; the user reads them on a phone. Today is \(day).\(containers)
     """
 }
 
@@ -163,6 +168,8 @@ public final class AgentSession {
 
     private static func tools(workspace: Workspace, settings: ModelSettings, containers: (any AppContainerAccess)?) -> [AgentTool] {
         agentFileTools(workspace: workspace, containers: settings.allowOtherApps ? containers : nil)
+            + webTools(searchProvider: settings.webSearchProvider)
+            + [javaScriptTool(workspace: workspace)]
     }
 
     /// Sends a message. While the agent works, the message steers it: it's read after the current tool calls.

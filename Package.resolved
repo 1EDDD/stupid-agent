@@ -1,5 +1,5 @@
 {
-  "originHash" : "e52c00f32d8549d4dadf674090c82ad35c4b8b2ad6e682176c0ce2c25144bbb5",
+  "originHash" : "3a145b34b18763ca7bea7c7b085da5cfd5d6d9dda35b3f76a98e1c692a47d08d",
   "pins" : [
     {
       "identity" : "stupid-chatkit",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/stephancill/swift-pi",
       "state" : {
-        "revision" : "d96ea436c830c19d567ad69030aca44130c87e1a",
-        "version" : "0.1.2"
+        "revision" : "5a7366f65fe4e0a8dfc8012c793c27c08b574f3a",
+        "version" : "0.2.0"
       }
     }
   ],

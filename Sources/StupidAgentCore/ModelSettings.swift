@@ -1,5 +1,6 @@
 import Foundation
 import PiAI
+import PiTools
 
 /// A server people commonly bring their own key for. `custom` is any other OpenAI-compatible server.
 public enum ProviderPreset: String, CaseIterable, Codable, Sendable, Identifiable {
@@ -76,6 +77,8 @@ public struct ModelSettings: Codable, Hashable, Sendable {
     public var allowOtherApps: Bool
     /// Models chosen before, most recent first, for the composer's model menu.
     public var recentModelIds: [String]
+    /// Where the web_search tool searches.
+    public var webSearchProvider: WebSearchProvider
 
     /// How many models the model menu keeps.
     public static let recentLimit = 6
@@ -89,7 +92,8 @@ public struct ModelSettings: Codable, Hashable, Sendable {
         acceptsImages: Bool = false,
         confirmFileChanges: Bool = true,
         allowOtherApps: Bool = false,
-        recentModelIds: [String] = []
+        recentModelIds: [String] = [],
+        webSearchProvider: WebSearchProvider = .exa
     ) {
         self.preset = preset
         self.baseURL = baseURL ?? preset.baseURL
@@ -100,10 +104,11 @@ public struct ModelSettings: Codable, Hashable, Sendable {
         self.confirmFileChanges = confirmFileChanges
         self.allowOtherApps = allowOtherApps
         self.recentModelIds = recentModelIds
+        self.webSearchProvider = webSearchProvider
     }
 
     private enum CodingKeys: String, CodingKey {
-        case preset, baseURL, modelId, reasoning, thinkingLevel, acceptsImages, confirmFileChanges, allowOtherApps, recentModelIds
+        case preset, baseURL, modelId, reasoning, thinkingLevel, acceptsImages, confirmFileChanges, allowOtherApps, recentModelIds, webSearchProvider
     }
 
     // Settings saved before a field existed decode with its default, so an update keeps them.
@@ -119,7 +124,8 @@ public struct ModelSettings: Codable, Hashable, Sendable {
             acceptsImages: try container.decodeIfPresent(Bool.self, forKey: .acceptsImages) ?? false,
             confirmFileChanges: try container.decodeIfPresent(Bool.self, forKey: .confirmFileChanges) ?? true,
             allowOtherApps: try container.decodeIfPresent(Bool.self, forKey: .allowOtherApps) ?? false,
-            recentModelIds: try container.decodeIfPresent([String].self, forKey: .recentModelIds) ?? []
+            recentModelIds: try container.decodeIfPresent([String].self, forKey: .recentModelIds) ?? [],
+            webSearchProvider: try container.decodeIfPresent(WebSearchProvider.self, forKey: .webSearchProvider) ?? .exa
         )
     }
 

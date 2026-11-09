@@ -31,6 +31,9 @@ import Testing
         #expect(toolSummary(name: "ls", arguments: ["path": "notes"]) == "notes")
         #expect(ToolCallItem(id: "1", name: "ls", summary: "", arguments: [:], status: .succeeded).title == "List")
         #expect(toolSummary(name: "grep", arguments: ["pattern": "todo", "path": "notes"]) == "todo in notes")
+        #expect(ToolCallItem(id: "1", name: "web_search", summary: toolSummary(name: "web_search", arguments: ["query": "swift 6"]), arguments: [:], status: .succeeded).title == "Search the web for swift 6")
+        #expect(toolSummary(name: "web_fetch", arguments: ["url": "https://www.swift.org/blog/?x=1"]) == "www.swift.org/blog/")
+        #expect(ToolCallItem(id: "1", name: "javascript", summary: toolSummary(name: "javascript", arguments: ["code": "return 1"]), arguments: [:], status: .succeeded).title == "Run JavaScript")
     }
 
     @Test func marksUnfinishedToolCalls() {
@@ -93,6 +96,7 @@ import Testing
         let settings = try JSONDecoder().decode(ModelSettings.self, from: Data(saved.utf8))
         #expect(settings.modelId == "openrouter/free")
         #expect(settings.recentModelIds.isEmpty)
+        #expect(settings.webSearchProvider == .exa)
     }
 
     @Test func retryDropsFailedResponses() {

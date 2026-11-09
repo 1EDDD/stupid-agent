@@ -1,6 +1,7 @@
 // The app is iOS-only; the guard lets `swift test` build the package on macOS for the core tests.
 #if os(iOS)
 import PiAI
+import PiTools
 import StupidAgentCore
 import SwiftUI
 
@@ -83,6 +84,18 @@ struct SettingsView: View {
                     if settings.allowOtherApps {
                         Text("The agent can also read and write files in other apps' containers. Requires iOS 26 or later on a real device.")
                     }
+                }
+
+                Section {
+                    Picker("Web Search", selection: $settings.webSearchProvider) {
+                        ForEach(WebSearchProvider.allCases, id: \.self) { provider in
+                            Text(provider.name).tag(provider)
+                        }
+                    }
+                } header: {
+                    Text("Tools")
+                } footer: {
+                    Text("The agent can search the web, read pages and run JavaScript. Searches go to the provider chosen here; neither needs an API key.")
                 }
 
                 if let saveError {

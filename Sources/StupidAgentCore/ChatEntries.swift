@@ -53,6 +53,9 @@ public struct ToolCallItem: Hashable, Sendable {
         case "ls": "List"
         case "find": "Find"
         case "grep": "Search"
+        case "web_search": "Search the web for"
+        case "web_fetch": "Fetch"
+        case "javascript": "Run JavaScript"
         default: name
         }
         return summary.isEmpty ? verb : "\(verb) \(summary)"
@@ -166,6 +169,14 @@ public func toolSummary(name: String, arguments: JSONObject) -> String {
     case "ls": arguments["path"]?.stringValue.flatMap { [".", "./", ""].contains($0) ? nil : $0 } ?? ""
     case "find": arguments["pattern"]?.stringValue ?? ""
     case "grep": [arguments["pattern"]?.stringValue, arguments["path"]?.stringValue].compactMap(\.self).joined(separator: " in ")
+    case "web_search": arguments["query"]?.stringValue ?? ""
+    // The host and path read better than the whole URL.
+    case "web_fetch": arguments["url"]?.stringValue.map { raw in
+            guard let url = URL(string: raw), let host = url.host() else { return raw }
+            return host + (url.path() == "/" ? "" : url.path())
+        } ?? ""
+    // The code is the call's content, not its name; the result shows below.
+    case "javascript": ""
     default: arguments.keys.sorted().first.flatMap { arguments[$0]?.stringValue } ?? ""
     }
 }

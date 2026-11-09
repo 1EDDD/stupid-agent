@@ -13,7 +13,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/stephancill/stupid-chatkit", from: "0.2.0"),
-        .package(url: "https://github.com/stephancill/swift-pi", from: "0.1.2"),
+        .package(url: "https://github.com/stephancill/swift-pi", from: "0.2.0"),
     ],
     targets: [
         // SwiftUI screens.
@@ -29,6 +29,7 @@ let package = Package(
             .product(name: "PiAI", package: "swift-pi"),
             .product(name: "PiAgent", package: "swift-pi"),
             .product(name: "PiTools", package: "swift-pi"),
+            .product(name: "PiJavaScript", package: "swift-pi"),
         ]),
         .testTarget(name: "StupidAgentCoreTests", dependencies: [
             "StupidAgentCore",

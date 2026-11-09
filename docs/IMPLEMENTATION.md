@@ -13,6 +13,14 @@
 - **Retry:** drops the failed responses at the end of the agent's transcript (keeping its leading system message), then calls `continueRun()`.
 - **Stop:** `Agent.abort()`. It also declines a pending file-change request.
 
+## Web and JavaScript tools
+
+- **Source:** swift pi's `webTools` (`web_search`, `web_fetch`) and `javaScriptTool`, added to the session's tools beside the file and sqlite tools (`AgentSession.tools`).
+- **web_search:** asks Exa or Parallel through their keyless MCP servers, the ones opencode uses. Settings → Tools picks the provider (`ModelSettings.webSearchProvider`, Exa by default); there is no fallback between them.
+- **javascript:** runs in an offscreen web view with read-only workspace access, so its runs need no approval. File changes still go through `write`/`edit`.
+- **Cards:** "Search the web for <query>", "Fetch <host/path>" and "Run JavaScript", with the result as the card's text.
+- **Verified:** with OpenRouter (`openai/gpt-4o-mini`) on the simulator, web_search found the latest Swift release and javascript worked out the days since it.
+
 ## File changes
 
 - When "Ask Before Changing Files" is on, `beforeToolCall` blocks `write` and `edit` calls until the user answers a centered alert (`FileChangeRequest`).
