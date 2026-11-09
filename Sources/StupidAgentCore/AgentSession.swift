@@ -1,0 +1,257 @@
+import Foundation
+import Observation
+import PiAgent
+import PiAI
+import PiTools
+
+/// A file change the agent wants to make, waiting for the user.
+public struct FileChangeRequest: Identifiable, Sendable {
+    public let id = UUID()
+    public let toolName: String
+    public let path: String
+    /// Whether the file exists, so the change overwrites or edits it rather than creating it.
+    public let exists: Bool
+
+    public var title: String {
+        switch (toolName, exists) {
+        case ("edit", _): "Edit \(path)?"
+        case (_, true): "Overwrite \(path)?"
+        default: "Create \(path)?"
+        }
+    }
+
+    public var message: String {
+        switch (toolName, exists) {
+        case ("edit", _): "The agent wants to change this file in your workspace."
+        case (_, true): "The agent wants to replace this file's contents in your workspace."
+        default: "The agent wants to create this file in your workspace."
+        }
+    }
+}
+
+/// The instructions every conversation starts with.
+public func systemPrompt(workspaceName: String, date: Date = Date()) -> String {
+    let day = date.formatted(.dateTime.weekday(.wide).day().month(.wide).year())
+    return """
+    You are stupid agent, an assistant that runs on the user's iPhone. You can work with files in the user's \
+    workspace, a folder the user also sees in the Files app as "\(workspaceName)".
+
+    Tools:
+    - read: read a file (text or image)
+    - write: create or overwrite a file
+    - edit: change part of a file by exact text replacement
+    - ls: list a directory
+    - find: find files by glob pattern
+    - grep: search file contents
+
+    Paths are relative to the workspace root. There is no shell: you can't run programs. Read a file before you edit \
+    it, and prefer edit over rewriting a whole file. Keep answers short; the user reads them on a phone. Today is \(day).
+    """
+}
+
+/// A conversation with the agent: its transcript, the run in progress, and approvals for file changes.
+@MainActor @Observable
+public final class AgentSession {
+    public private(set) var conversation: Conversation
+    public private(set) var messages: [AgentMessage]
+    public private(set) var streamingMessage: AssistantMessage?
+    public private(set) var runningToolCalls: Set<String> = []
+    public private(set) var isRunning = false
+    /// Why the last send failed before the agent started, such as missing settings.
+    public var notice: String?
+    /// A file change waiting for `resolveFileChange`.
+    public private(set) var pendingFileChange: FileChangeRequest?
+
+    @ObservationIgnored private let agent: Agent
+    @ObservationIgnored private let store: ConversationStore
+    @ObservationIgnored private let workspace: Workspace
+    @ObservationIgnored private var eventsTask: Task<Void, Never>?
+    @ObservationIgnored private var setupTask: Task<Void, Never>?
+    @ObservationIgnored private var runTask: Task<Void, Never>?
+    @ObservationIgnored private var fileChangeContinuation: CheckedContinuation<Bool, Never>?
+    @ObservationIgnored private var settings: ModelSettings
+
+    public var items: [ChatItem] {
+        chatItems(messages: messages, streaming: streamingMessage, runningToolCalls: runningToolCalls, isRunning: isRunning)
+    }
+
+    public init(
+        conversation: Conversation,
+        settings: ModelSettings,
+        apiKey: String?,
+        workspace: Workspace,
+        store: ConversationStore,
+        workspaceName: String = "stupid agent",
+        streamFunction: @escaping StreamFunction = defaultStreamFunction
+    ) {
+        self.conversation = conversation
+        self.settings = settings
+        self.store = store
+        self.workspace = workspace
+        messages = conversation.messages
+        agent = Agent(
+            model: settings.model,
+            systemPrompt: systemPrompt(workspaceName: workspaceName),
+            tools: fileTools(workspace: workspace),
+            messages: conversation.messages,
+            thinkingLevel: settings.reasoning ? settings.thinkingLevel : .off,
+            streamOptions: StreamOptions(apiKey: apiKey, headers: Self.headers(for: settings)),
+            streamFunction: streamFunction
+        )
+        let agent = agent
+        let beforeToolCall: @Sendable (BeforeToolCallContext) async -> BeforeToolCallResult? = { [weak self] context in
+            await self?.approve(context)
+        }
+        // Subscribe and install the approval hook before the first run.
+        setupTask = Task { [weak self] in
+            let events = await agent.events()
+            await agent.configure { agent in
+                agent.beforeToolCall = beforeToolCall
+            }
+            self?.eventsTask = Task { [weak self] in
+                for await event in events {
+                    self?.handle(event)
+                }
+            }
+        }
+    }
+
+    // `deinit` can't touch main-actor state; the events task ends when the agent's stream does.
+
+    /// OpenRouter shows the app's name for requests that say where they come from.
+    private static func headers(for settings: ModelSettings) -> [String: String]? {
+        guard settings.preset == .openRouter else { return nil }
+        return ["HTTP-Referer": "https://stupidtech.net", "X-Title": "stupid agent"]
+    }
+
+    /// Applies changed settings to later requests.
+    public func update(settings: ModelSettings, apiKey: String?) {
+        self.settings = settings
+        Task {
+            await agent.setModel(settings.model)
+            await agent.setThinkingLevel(settings.reasoning ? settings.thinkingLevel : .off)
+            await agent.setStreamOptions(StreamOptions(apiKey: apiKey, headers: Self.headers(for: settings)))
+        }
+    }
+
+    /// Sends a message. While the agent works, the message steers it: it's read after the current tool calls.
+    public func send(_ text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        notice = nil
+        if isRunning {
+            Task { await agent.steer(.user(text)) }
+            return
+        }
+        isRunning = true
+        runTask = Task {
+            await setupTask?.value
+            // The previous run reports its end before the agent is idle.
+            await agent.waitForIdle()
+            do {
+                try await agent.prompt(text)
+            } catch {
+                notice = error.localizedDescription
+                finishRun()
+            }
+        }
+    }
+
+    /// Retries after a failed response.
+    public func retry() {
+        guard !isRunning else { return }
+        notice = nil
+        isRunning = true
+        messages = retryTranscript(messages)
+        runTask = Task {
+            await setupTask?.value
+            await agent.waitForIdle()
+            do {
+                try await agent.setMessages(retryTranscript(await agent.state.messages))
+                try await agent.continueRun()
+            } catch {
+                notice = error.localizedDescription
+                finishRun()
+            }
+        }
+    }
+
+    /// Whether the last response failed, so it can be retried.
+    public var canRetry: Bool {
+        guard !isRunning, let last = messages.last?.assistant else { return false }
+        return last.stopReason == .error
+    }
+
+    public func stop() {
+        resolveFileChange(allowed: false)
+        Task { await agent.abort() }
+    }
+
+    /// Answers the pending file change.
+    public func resolveFileChange(allowed: Bool) {
+        pendingFileChange = nil
+        fileChangeContinuation?.resume(returning: allowed)
+        fileChangeContinuation = nil
+    }
+
+    private func approve(_ context: BeforeToolCallContext) async -> BeforeToolCallResult? {
+        guard settings.confirmFileChanges, context.toolCall.name == "write" || context.toolCall.name == "edit" else { return nil }
+        let path = context.arguments["path"]?.stringValue ?? ""
+        let exists = (try? workspace.resolve(path)).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        // One request at a time: parallel calls queue behind the open one.
+        while fileChangeContinuation != nil {
+            try? await Task.sleep(for: .milliseconds(100))
+            if Task.isCancelled { return BeforeToolCallResult(block: true, reason: "Operation aborted") }
+        }
+        let allowed = await withCheckedContinuation { continuation in
+            fileChangeContinuation = continuation
+            pendingFileChange = FileChangeRequest(toolName: context.toolCall.name, path: path, exists: exists)
+        }
+        return allowed ? nil : BeforeToolCallResult(block: true, reason: "The user declined this change to \(path).")
+    }
+
+    private func handle(_ event: AgentEvent) {
+        switch event {
+        case let .messageStart(message), let .messageUpdate(message, _):
+            streamingMessage = message.assistant
+        case let .messageEnd(message):
+            streamingMessage = nil
+            messages.append(message)
+        case let .toolExecutionStart(id, _, _):
+            runningToolCalls.insert(id)
+        case let .toolExecutionEnd(id, _, _, _, _):
+            runningToolCalls.remove(id)
+        case .agentEnd:
+            finishRun()
+        default:
+            break
+        }
+    }
+
+    /// Ends the run in the UI and saves. Runs as the `agentEnd` event is handled, so every message event of the run
+    /// has been applied: the event stream is the only source of `messages`.
+    private func finishRun() {
+        isRunning = false
+        streamingMessage = nil
+        runningToolCalls = []
+        conversation.messages = messages
+        conversation.updatedAt = Date()
+        if conversation.title == "New chat", let title = Conversation.title(for: messages) {
+            conversation.title = title
+        }
+        do {
+            try store.save(conversation)
+        } catch {
+            notice = "Couldn't save the conversation: \(error.localizedDescription)"
+        }
+    }
+}
+
+/// The transcript to retry from: without the failed responses at its end.
+func retryTranscript(_ messages: [AgentMessage]) -> [AgentMessage] {
+    var messages = messages
+    while let last = messages.last?.assistant, last.stopReason == .error || last.stopReason == .aborted {
+        messages.removeLast()
+    }
+    return messages
+}
