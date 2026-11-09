@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "StupidAgent", targets: ["StupidAgent"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/stephancill/stupid-chatkit", from: "0.1.1"),
+        .package(url: "https://github.com/stephancill/stupid-chatkit", from: "0.2.0"),
         .package(url: "https://github.com/stephancill/swift-pi", from: "0.1.2"),
     ],
     targets: [

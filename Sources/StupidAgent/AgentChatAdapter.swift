@@ -12,8 +12,11 @@ extension ChatNetwork {
 /// One agent conversation as a stupid chatkit chat: translates the session's entries to chat messages and sends
 /// through the session. The session pushes changes, so there is no polling.
 @MainActor
-final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatButtonPressing {
+final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatButtonPressing, ChatComposerMenus {
     let session: AgentSession
+    let app: AppModel
+    /// Opens the list of every model the server has.
+    let chooseModel: () -> Void
     let network = ChatNetwork.agent
     let canReply = false
     let acceptsAttachments = false
@@ -32,15 +35,45 @@ final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatBut
     static let system = ChatUser(id: "system", name: nil, avatarURL: nil, isSystem: true)
     static let retryButton = ChatMessageButton(id: "retry", title: "Retry", action: .press)
 
-    init(session: AgentSession) {
+    init(session: AgentSession, app: AppModel, chooseModel: @escaping () -> Void) {
         self.session = session
+        self.app = app
+        self.chooseModel = chooseModel
         refresh()
     }
 
     var key: String { "agent:\(session.conversation.id.uuidString)" }
 
     var info: ChatInfo {
-        ChatInfo(title: session.conversation.title, subtitle: session.modelId, showsSenderNames: false)
+        ChatInfo(title: session.conversation.title, subtitle: app.settings.modelId, showsSenderNames: false)
+    }
+
+    private static let chooseItemId = "choose"
+    private static let modelItemPrefix = "model:"
+
+    /// The model the agent answers with: the recent ones, then the server's full list.
+    var composerMenu: ChatComposerMenu? {
+        let settings = app.settings
+        guard !settings.modelId.isEmpty else { return nil }
+        let models = settings.menuModelIds.map { id in
+            let name = shortModelName(id)
+            return ChatComposerMenuItem(id: Self.modelItemPrefix + id, title: name, subtitle: name == id ? nil : id, isSelected: id == settings.modelId)
+        }
+        let choose = ChatComposerMenuItem(id: Self.chooseItemId, title: "Choose Model…", systemImage: "magnifyingglass")
+        // A brain at the end of the text row; the menu is headed by the full model id.
+        return ChatComposerMenu(title: settings.modelId, accessibilityLabel: "Model", systemImage: "brain", sections: [models, [choose]])
+    }
+
+    func selectComposerMenuItem(_ itemId: String) {
+        if itemId == Self.chooseItemId {
+            chooseModel()
+        } else if itemId.hasPrefix(Self.modelItemPrefix) {
+            do {
+                try app.selectModel(String(itemId.dropFirst(Self.modelItemPrefix.count)))
+            } catch {
+                session.notice = "Couldn't switch models: \(error.localizedDescription)"
+            }
+        }
     }
 
     var typingNames: [String] {
@@ -91,6 +124,7 @@ final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatBut
             _ = session.entries
             _ = session.isRunning
             _ = session.conversation.title
+            _ = app.settings
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.refresh()

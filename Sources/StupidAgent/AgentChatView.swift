@@ -8,10 +8,16 @@ import SwiftUI
 /// asks before a file changes.
 struct AgentChatView: View {
     @Bindable var session: AgentSession
+    @Environment(AppModel.self) private var app
+    @State private var choosingModel = false
 
     var body: some View {
-        NetworkChatView(viewModel: AdapterChatViewModel(adapter: AgentChatAdapter(session: session), accountId: "local"))
+        // The adapter is made once for the chat; the state it sets lives as long as this view does.
+        NetworkChatView(viewModel: AdapterChatViewModel(adapter: AgentChatAdapter(session: session, app: app, chooseModel: { choosingModel = true }), accountId: "local"))
             .id(session.conversation.id)
+            .sheet(isPresented: $choosingModel) {
+                ModelPickerView()
+            }
             .toolbar {
                 if session.isRunning {
                     ToolbarItem(placement: .topBarTrailing) {

@@ -73,6 +73,28 @@ import Testing
         #expect(settings.model.baseURL == "http://localhost:11434/v1")
     }
 
+    @Test func remembersRecentModels() throws {
+        var settings = ModelSettings(preset: .openRouter, modelId: "openrouter/free")
+        #expect(settings.menuModelIds == ["openrouter/free"])
+        settings.select(modelId: "openai/gpt-4o-mini")
+        // The model it switched from stays in the menu.
+        #expect(settings.recentModelIds == ["openai/gpt-4o-mini", "openrouter/free"])
+        settings.select(modelId: "openrouter/free")
+        #expect(settings.modelId == "openrouter/free")
+        #expect(settings.recentModelIds == ["openrouter/free", "openai/gpt-4o-mini"])
+        for index in 0 ..< 10 { settings.select(modelId: "m\(index)") }
+        #expect(settings.recentModelIds.count == ModelSettings.recentLimit)
+        #expect(shortModelName("openai/gpt-4o-mini") == "gpt-4o-mini")
+        #expect(shortModelName("llama3.2") == "llama3.2")
+    }
+
+    @Test func decodesSettingsSavedBeforeRecentModels() throws {
+        let saved = #"{"preset":"openRouter","baseURL":"https://openrouter.ai/api/v1","modelId":"openrouter/free","reasoning":false,"thinkingLevel":"medium","acceptsImages":false,"confirmFileChanges":true}"#
+        let settings = try JSONDecoder().decode(ModelSettings.self, from: Data(saved.utf8))
+        #expect(settings.modelId == "openrouter/free")
+        #expect(settings.recentModelIds.isEmpty)
+    }
+
     @Test func retryDropsFailedResponses() {
         let failed = AgentMessage.llm(.assistant(AssistantMessage(api: "x", provider: "x", model: "x", stopReason: .error)))
         #expect(retryTranscript([.user("a"), failed, failed]).map(\.role) == ["user"])

@@ -74,6 +74,11 @@ public struct ModelSettings: Codable, Hashable, Sendable {
     public var confirmFileChanges: Bool
     /// Whether the agent can read and write files in other apps' containers.
     public var allowOtherApps: Bool
+    /// Models chosen before, most recent first, for the composer's model menu.
+    public var recentModelIds: [String]
+
+    /// How many models the model menu keeps.
+    public static let recentLimit = 6
 
     public init(
         preset: ProviderPreset = .openRouter,
@@ -83,7 +88,8 @@ public struct ModelSettings: Codable, Hashable, Sendable {
         thinkingLevel: ThinkingLevel = .medium,
         acceptsImages: Bool = false,
         confirmFileChanges: Bool = true,
-        allowOtherApps: Bool = false
+        allowOtherApps: Bool = false,
+        recentModelIds: [String] = []
     ) {
         self.preset = preset
         self.baseURL = baseURL ?? preset.baseURL
@@ -93,10 +99,11 @@ public struct ModelSettings: Codable, Hashable, Sendable {
         self.acceptsImages = acceptsImages
         self.confirmFileChanges = confirmFileChanges
         self.allowOtherApps = allowOtherApps
+        self.recentModelIds = recentModelIds
     }
 
     private enum CodingKeys: String, CodingKey {
-        case preset, baseURL, modelId, reasoning, thinkingLevel, acceptsImages, confirmFileChanges, allowOtherApps
+        case preset, baseURL, modelId, reasoning, thinkingLevel, acceptsImages, confirmFileChanges, allowOtherApps, recentModelIds
     }
 
     // Settings saved before a field existed decode with its default, so an update keeps them.
@@ -111,8 +118,33 @@ public struct ModelSettings: Codable, Hashable, Sendable {
             thinkingLevel: try container.decodeIfPresent(ThinkingLevel.self, forKey: .thinkingLevel) ?? .medium,
             acceptsImages: try container.decodeIfPresent(Bool.self, forKey: .acceptsImages) ?? false,
             confirmFileChanges: try container.decodeIfPresent(Bool.self, forKey: .confirmFileChanges) ?? true,
-            allowOtherApps: try container.decodeIfPresent(Bool.self, forKey: .allowOtherApps) ?? false
+            allowOtherApps: try container.decodeIfPresent(Bool.self, forKey: .allowOtherApps) ?? false,
+            recentModelIds: try container.decodeIfPresent([String].self, forKey: .recentModelIds) ?? []
         )
+    }
+
+    /// Switches to a model and puts it first among the recent ones.
+    public mutating func select(modelId: String) {
+        let id = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { return }
+        // The model being left stays in the menu, even when it was set before recent models were kept.
+        rememberModel()
+        self.modelId = id
+        rememberModel()
+    }
+
+    /// Puts the current model first among the recent ones, such as after it was set in Settings.
+    public mutating func rememberModel() {
+        let id = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { return }
+        recentModelIds = Array(([id] + recentModelIds.filter { $0 != id }).prefix(Self.recentLimit))
+    }
+
+    /// The recent models with the current one among them, most recent first.
+    public var menuModelIds: [String] {
+        let current = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !current.isEmpty, !recentModelIds.contains(current) else { return recentModelIds }
+        return [current] + recentModelIds
     }
 
     /// Whether enough is set to send a request.
@@ -131,6 +163,11 @@ public struct ModelSettings: Codable, Hashable, Sendable {
             input: acceptsImages ? [.text, .image] : [.text]
         )
     }
+}
+
+/// A model id's short name for tight spaces: what follows the vendor prefix (`openai/gpt-4o-mini` → `gpt-4o-mini`).
+public func shortModelName(_ id: String) -> String {
+    id.split(separator: "/").last.map(String.init) ?? id
 }
 
 /// Settings persisted in user defaults, the key in the Keychain.

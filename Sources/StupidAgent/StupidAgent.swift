@@ -44,6 +44,8 @@ final class AppModel {
     var isConfigured: Bool { settings.isComplete(apiKey: apiKey) }
 
     func save(settings: ModelSettings, apiKey: String?) throws {
+        var settings = settings
+        settings.rememberModel()
         // The key first: if it can't be stored, nothing changes.
         try settingsStore.setAPIKey(apiKey)
         try settingsStore.save(settings)
@@ -52,6 +54,13 @@ final class AppModel {
         for session in sessions.values {
             session.update(settings: settings, apiKey: apiKey)
         }
+    }
+
+    /// Switches every conversation to a model, as the composer's model menu does.
+    func selectModel(_ modelId: String) throws {
+        var settings = settings
+        settings.select(modelId: modelId)
+        try save(settings: settings, apiKey: apiKey)
     }
 
     func newConversation() -> UUID {
