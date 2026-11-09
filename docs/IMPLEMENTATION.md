@@ -61,6 +61,7 @@
 ## Conversation list
 
 - **Rows:** laid out like Messages: a gray avatar with the brain, the title (semibold) with the time and a chevron (the navigation link's own chevron is hidden), and two lines of the last message. The time reads as Messages shows it: the time today, "Yesterday", the weekday within a week, else the date. The list is plain, with separators starting at the text and none above the first row.
+- **Search and compose:** as in Messages on iOS 26, the search field and the compose button share the bottom toolbar (`DefaultToolbarItem(kind: .search, placement: .bottomBar)` beside the button). Search matches titles and previews, not whole transcripts, and shows "No Results" when nothing matches. Before iOS 26 the field sits under the title and compose in the top bar.
 - **Previews:** `ConversationSummary.preview` is the agent's last reply (its Markdown rendered to plain text), else the user's last message, on one line, up to 200 characters. It's kept in `index.json`. Entries saved before previews get one from their conversation the first time the list reads them, and the index is rewritten.
 
 ## Chat screen

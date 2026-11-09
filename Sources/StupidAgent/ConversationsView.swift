@@ -8,6 +8,16 @@ struct ConversationsView: View {
     @State private var path: [UUID] = []
     @State private var showSettings = false
     @State private var pendingDelete: ConversationSummary?
+    @State private var query = ""
+
+    /// The chats whose title or last message has the search text.
+    private var shownConversations: [ConversationSummary] {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return model.conversations }
+        return model.conversations.filter { conversation in
+            conversation.title.localizedCaseInsensitiveContains(query) || (conversation.preview ?? "").localizedCaseInsensitiveContains(query)
+        }
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -19,13 +29,13 @@ struct ConversationsView: View {
                         Text("Bring your own model: an API key from OpenAI, OpenRouter or another OpenAI-compatible server, or a model running on your computer.")
                     }
                 }
-                ForEach(model.conversations) { conversation in
+                ForEach(shownConversations) { conversation in
                     ConversationRow(conversation: conversation)
                         // The link without its chevron: the row draws one beside the time, as Messages does.
                         .background(NavigationLink(value: conversation.id) { EmptyView() }.opacity(0))
                         .alignmentGuide(.listRowSeparatorLeading) { dimensions in dimensions[.leading] + ConversationRow.textInset }
                         // Messages has no line above the first row.
-                        .listRowSeparator(conversation.id == model.conversations.first?.id ? .hidden : .automatic, edges: .top)
+                        .listRowSeparator(conversation.id == shownConversations.first?.id ? .hidden : .automatic, edges: .top)
                     .swipeActions {
                         Button("Delete", role: .destructive) { pendingDelete = conversation }
                     }
@@ -33,8 +43,11 @@ struct ConversationsView: View {
             }
             .listStyle(.plain)
             .listSectionSeparator(.hidden, edges: .top)
+            .searchable(text: $query, prompt: "Search")
             .overlay {
-                if model.conversations.isEmpty, model.isConfigured {
+                if !query.trimmingCharacters(in: .whitespaces).isEmpty, shownConversations.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                } else if model.conversations.isEmpty, model.isConfigured {
                     ContentUnavailableView("No Chats", systemImage: "bubble.left.and.text.bubble.right", description: Text("Start a chat to ask the agent to work with your files."))
                 }
             }
@@ -50,11 +63,13 @@ struct ConversationsView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Settings", systemImage: "gear") { showSettings = true }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("New Chat", systemImage: "square.and.pencil") {
-                        path = [model.newConversation()]
-                    }
-                    .disabled(!model.isConfigured)
+                // As in Messages on iOS 26: the search field and the compose button share the bottom bar.
+                if #available(iOS 26.0, *) {
+                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                    ToolbarSpacer(.fixed, placement: .bottomBar)
+                    ToolbarItem(placement: .bottomBar) { newChatButton }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) { newChatButton }
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -73,6 +88,13 @@ struct ConversationsView: View {
             }
             .onChange(of: path) { model.refresh() }
         }
+    }
+
+    private var newChatButton: some View {
+        Button("New Chat", systemImage: "square.and.pencil") {
+            path = [model.newConversation()]
+        }
+        .disabled(!model.isConfigured)
     }
 }
 
