@@ -2,8 +2,8 @@
 
 ## Agent core
 
-- **Source:** stupid pi, vendored into `Vendor/StupidPi` at a tag by `scripts/vendor-stupid-pi.sh`. The tag and commit are in `Vendor/StupidPi/VERSION`. stupid-app builds only local sources, so the package isn't resolved by SwiftPM.
-- **Session:** `AgentSession` owns one stupid pi `Agent`:
+- **Source:** swift pi, vendored into `Vendor/SwiftPi` at a tag by `scripts/vendor-swift-pi.sh`. The tag and commit are in `Vendor/SwiftPi/VERSION`. stupid-app builds only local sources, so the package isn't resolved by SwiftPM.
+- **Session:** `AgentSession` owns one swift pi `Agent`:
   - its system prompt is `systemPrompt(workspaceName:)`
   - its tools are `fileTools(workspace:)`
   - its transcript is the conversation's
@@ -22,7 +22,7 @@
 
 - The app's Documents folder. `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` make it visible in Files under On My iPhone → stupid agent.
 - On first launch the app writes `Welcome.md`, so the folder appears in Files and the agent has something to read.
-- stupid pi's `Workspace` rejects paths outside the folder.
+- swift pi's `Workspace` rejects paths outside the folder.
 - Conversations are stored outside the workspace, in Application Support/Conversations: one JSON file per conversation plus `index.json`. Dates use JSONEncoder's default encoding, because ISO 8601 dropped fractional seconds and saved conversations didn't read back equal.
 
 ## Settings

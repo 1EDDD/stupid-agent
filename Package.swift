@@ -16,10 +16,10 @@ let package = Package(
         .target(name: "StupidAgent", dependencies: ["StupidAgentCore", "PiAI", "PiTools"]),
         // Settings, storage and the agent session, without UI.
         .target(name: "StupidAgentCore", dependencies: ["PiAI", "PiAgent", "PiTools"]),
-        // stupid pi, vendored by scripts/vendor-stupid-pi.sh; don't edit these by hand.
-        .target(name: "PiAI", path: "Vendor/StupidPi/Sources/PiAI"),
-        .target(name: "PiAgent", dependencies: ["PiAI"], path: "Vendor/StupidPi/Sources/PiAgent"),
-        .target(name: "PiTools", dependencies: ["PiAI", "PiAgent"], path: "Vendor/StupidPi/Sources/PiTools"),
+        // swift pi, vendored by scripts/vendor-swift-pi.sh; don't edit these by hand.
+        .target(name: "PiAI", path: "Vendor/SwiftPi/Sources/PiAI"),
+        .target(name: "PiAgent", dependencies: ["PiAI"], path: "Vendor/SwiftPi/Sources/PiAgent"),
+        .target(name: "PiTools", dependencies: ["PiAI", "PiAgent"], path: "Vendor/SwiftPi/Sources/PiTools"),
         .testTarget(name: "StupidAgentCoreTests", dependencies: ["StupidAgentCore", "PiAI", "PiAgent"]),
     ]
 )

@@ -38,7 +38,7 @@ public enum ProviderPreset: String, CaseIterable, Codable, Sendable, Identifiabl
         }
     }
 
-    /// The provider id stupid pi uses for compatibility detection.
+    /// The provider id swift pi uses for compatibility detection.
     public var providerId: String {
         switch self {
         case .openAI: "openai"

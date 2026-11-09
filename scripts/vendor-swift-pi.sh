@@ -1,14 +1,14 @@
 #!/bin/bash
-# Vendors the stupid pi Swift package (github.com/stephancill/stupid-pi) into Vendor/StupidPi at a release tag.
+# Vendors the swift pi package (github.com/stephancill/swift-pi) into Vendor/SwiftPi at a release tag.
 # stupid-app builds only local sources, not remote package products, so the sources are copied rather than
 # resolved by SwiftPM.
 set -euo pipefail
 
-TAG="${1:-v0.1.0}"
-REPO="https://github.com/stephancill/stupid-pi.git"
+TAG="${1:-v0.1.1}"
+REPO="https://github.com/stephancill/swift-pi.git"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/Vendor/StupidPi"
+OUT="$ROOT/Vendor/SwiftPi"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -20,4 +20,4 @@ mkdir -p "$OUT"
 cp -R "$WORK/repo/Sources" "$OUT/Sources"
 cp "$WORK/repo/LICENSE" "$OUT/LICENSE"
 printf '%s %s\n' "$TAG" "$commit" > "$OUT/VERSION"
-echo "Vendored stupid pi $TAG ($commit)"
+echo "Vendored swift pi $TAG ($commit)"

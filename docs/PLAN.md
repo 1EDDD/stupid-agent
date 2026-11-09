@@ -29,5 +29,5 @@ device. The tool set grows over time.
 - Attach images and files to messages.
 - Remote MCP servers over HTTP.
 - Compaction for long conversations.
-- More provider APIs in stupid pi (Anthropic Messages, OpenAI Responses).
+- More provider APIs in swift pi (Anthropic Messages, OpenAI Responses).
 - Usage and error reporting through stupid metrics.

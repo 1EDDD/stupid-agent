@@ -1,14 +1,14 @@
 # stupid agent
 
 An iOS app for a bring-your-own-model agent that runs on the device: the user sets an OpenAI-compatible server, key
-and model, and the agent executes tool calls on the phone against the app's workspace folder. Built on stupid pi
-(github.com/stephancill/stupid-pi), a Swift port of pi.
+and model, and the agent executes tool calls on the phone against the app's workspace folder. Built on swift pi
+(github.com/stephancill/swift-pi), a Swift port of pi.
 
 ## Before changing anything
 
 - Read `docs/PLAN.md` for product direction and `docs/IMPLEMENTATION.md` for the current state and decisions.
-- Agent behavior (loop, providers, tools) belongs in stupid pi, not here: change it in `../stupid-pi`, tag a release,
-  then run `scripts/vendor-stupid-pi.sh <tag>`. Never edit `Vendor/StupidPi` by hand.
+- Agent behavior (loop, providers, tools) belongs in swift pi, not here: change it in `../swift-pi`, tag a release,
+  then run `scripts/vendor-swift-pi.sh <tag>`. Never edit `Vendor/SwiftPi` by hand.
 
 ## Project structure
 
@@ -24,8 +24,8 @@ Sources/
     Keychain.swift
     ConversationStore.swift
     ChatItems.swift       # Transcript → display rows
-    AgentSession.swift    # One conversation: the stupid pi Agent, file-change approvals, saving
-Vendor/StupidPi/          # stupid pi sources at a tag (scripts/vendor-stupid-pi.sh)
+    AgentSession.swift    # One conversation: the swift pi Agent, file-change approvals, saving
+Vendor/SwiftPi/          # swift pi sources at a tag (scripts/vendor-swift-pi.sh)
 Tests/StupidAgentCoreTests/
 ```
 
