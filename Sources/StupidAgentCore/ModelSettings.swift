@@ -72,6 +72,8 @@ public struct ModelSettings: Codable, Hashable, Sendable {
     public var acceptsImages: Bool
     /// Whether the agent asks before it creates or changes a file.
     public var confirmFileChanges: Bool
+    /// Whether the agent can read and write files in other apps' containers.
+    public var allowOtherApps: Bool
 
     public init(
         preset: ProviderPreset = .openRouter,
@@ -80,7 +82,8 @@ public struct ModelSettings: Codable, Hashable, Sendable {
         reasoning: Bool = false,
         thinkingLevel: ThinkingLevel = .medium,
         acceptsImages: Bool = false,
-        confirmFileChanges: Bool = true
+        confirmFileChanges: Bool = true,
+        allowOtherApps: Bool = false
     ) {
         self.preset = preset
         self.baseURL = baseURL ?? preset.baseURL
@@ -89,6 +92,27 @@ public struct ModelSettings: Codable, Hashable, Sendable {
         self.thinkingLevel = thinkingLevel
         self.acceptsImages = acceptsImages
         self.confirmFileChanges = confirmFileChanges
+        self.allowOtherApps = allowOtherApps
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case preset, baseURL, modelId, reasoning, thinkingLevel, acceptsImages, confirmFileChanges, allowOtherApps
+    }
+
+    // Settings saved before a field existed decode with its default, so an update keeps them.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let preset = try container.decode(ProviderPreset.self, forKey: .preset)
+        self.init(
+            preset: preset,
+            baseURL: try container.decodeIfPresent(String.self, forKey: .baseURL),
+            modelId: try container.decodeIfPresent(String.self, forKey: .modelId) ?? "",
+            reasoning: try container.decodeIfPresent(Bool.self, forKey: .reasoning) ?? false,
+            thinkingLevel: try container.decodeIfPresent(ThinkingLevel.self, forKey: .thinkingLevel) ?? .medium,
+            acceptsImages: try container.decodeIfPresent(Bool.self, forKey: .acceptsImages) ?? false,
+            confirmFileChanges: try container.decodeIfPresent(Bool.self, forKey: .confirmFileChanges) ?? true,
+            allowOtherApps: try container.decodeIfPresent(Bool.self, forKey: .allowOtherApps) ?? false
+        )
     }
 
     /// Whether enough is set to send a request.

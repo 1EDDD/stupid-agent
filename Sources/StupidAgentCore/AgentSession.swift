@@ -11,6 +11,8 @@ public struct FileChangeRequest: Identifiable, Sendable {
     public let path: String
     /// Whether the file exists, so the change overwrites or edits it rather than creating it.
     public let exists: Bool
+    /// Whether the file is in the app's workspace, rather than another app's container.
+    public let inWorkspace: Bool
 
     public var title: String {
         switch (toolName, exists) {
@@ -21,17 +23,28 @@ public struct FileChangeRequest: Identifiable, Sendable {
     }
 
     public var message: String {
-        switch (toolName, exists) {
-        case ("edit", _): "The agent wants to change this file in your workspace."
-        case (_, true): "The agent wants to replace this file's contents in your workspace."
-        default: "The agent wants to create this file in your workspace."
+        let place = inWorkspace ? "your workspace" : "another app's container"
+        return switch (toolName, exists) {
+        case ("edit", _): "The agent wants to change this file in \(place)."
+        case (_, true): "The agent wants to replace this file's contents in \(place)."
+        default: "The agent wants to create this file in \(place)."
         }
     }
 }
 
 /// The instructions every conversation starts with.
-public func systemPrompt(workspaceName: String, date: Date = Date()) -> String {
+public func systemPrompt(workspaceName: String, date: Date = Date(), containerAccess: Bool = false) -> String {
     let day = date.formatted(.dateTime.weekday(.wide).day().month(.wide).year())
+    let appsTool = containerAccess ? "\n- apps: list other apps' containers you can read and write" : ""
+    let containers = containerAccess
+        ? """
+
+    Paths that start with /apps/<bundle id>/ or /app-groups/<group id>/ reach another app's files. List the \
+    containers with apps first. ls and find report paths relative to the container's root, so add that prefix \
+    before using them in another call. Changing another app's files can affect that app, so prefer copying a file \
+    into the workspace before editing it.
+    """
+        : ""
     return """
     You are stupid agent, an assistant that runs on the user's iPhone. You can work with files in the user's \
     workspace, a folder the user also sees in the Files app as "\(workspaceName)".
@@ -43,9 +56,10 @@ public func systemPrompt(workspaceName: String, date: Date = Date()) -> String {
     - ls: list a directory
     - find: find files by glob pattern
     - grep: search file contents
+    - sqlite: query a SQLite database read-only\(appsTool)
 
     Paths are relative to the workspace root. There is no shell: you can't run programs. Read a file before you edit \
-    it, and prefer edit over rewriting a whole file. Keep answers short; the user reads them on a phone. Today is \(day).
+    it, and prefer edit over rewriting a whole file. Keep answers short; the user reads them on a phone. Today is \(day).\(containers)
     """
 }
 
@@ -65,6 +79,7 @@ public final class AgentSession {
     @ObservationIgnored private let agent: Agent
     @ObservationIgnored private let store: ConversationStore
     @ObservationIgnored private let workspace: Workspace
+    @ObservationIgnored private let containers: (any AppContainerAccess)?
     @ObservationIgnored private var eventsTask: Task<Void, Never>?
     @ObservationIgnored private var setupTask: Task<Void, Never>?
     @ObservationIgnored private var runTask: Task<Void, Never>?
@@ -88,17 +103,20 @@ public final class AgentSession {
         workspace: Workspace,
         store: ConversationStore,
         workspaceName: String = "stupid agent",
+        containers: (any AppContainerAccess)? = nil,
         streamFunction: @escaping StreamFunction = defaultStreamFunction
     ) {
         self.conversation = conversation
         self.settings = settings
         self.store = store
         self.workspace = workspace
+        self.containers = containers
         messages = conversation.messages
+        let containerAccess = settings.allowOtherApps && (containers?.isAvailable ?? false)
         agent = Agent(
             model: settings.model,
-            systemPrompt: systemPrompt(workspaceName: workspaceName),
-            tools: fileTools(workspace: workspace),
+            systemPrompt: systemPrompt(workspaceName: workspaceName, containerAccess: containerAccess),
+            tools: Self.tools(workspace: workspace, settings: settings, containers: containers),
             messages: conversation.messages,
             thinkingLevel: settings.reasoning ? settings.thinkingLevel : .off,
             streamOptions: StreamOptions(apiKey: apiKey, headers: Self.headers(for: settings)),
@@ -133,11 +151,18 @@ public final class AgentSession {
     /// Applies changed settings to later requests.
     public func update(settings: ModelSettings, apiKey: String?) {
         self.settings = settings
+        let containers = containers
+        let workspace = workspace
         Task {
             await agent.setModel(settings.model)
             await agent.setThinkingLevel(settings.reasoning ? settings.thinkingLevel : .off)
             await agent.setStreamOptions(StreamOptions(apiKey: apiKey, headers: Self.headers(for: settings)))
+            await agent.setTools(Self.tools(workspace: workspace, settings: settings, containers: containers))
         }
+    }
+
+    private static func tools(workspace: Workspace, settings: ModelSettings, containers: (any AppContainerAccess)?) -> [AgentTool] {
+        agentFileTools(workspace: workspace, containers: settings.allowOtherApps ? containers : nil)
     }
 
     /// Sends a message. While the agent works, the message steers it: it's read after the current tool calls.
@@ -209,7 +234,8 @@ public final class AgentSession {
     private func approve(_ context: BeforeToolCallContext) async -> BeforeToolCallResult? {
         guard settings.confirmFileChanges, context.toolCall.name == "write" || context.toolCall.name == "edit" else { return nil }
         let path = context.arguments["path"]?.stringValue ?? ""
-        let exists = (try? workspace.resolve(path)).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        let isContainer = ContainerPath.parse(path) != nil
+        let exists = await fileExists(at: path)
         // One request at a time: parallel calls queue behind the open one.
         while fileChangeContinuation != nil {
             try? await Task.sleep(for: .milliseconds(100))
@@ -217,9 +243,21 @@ public final class AgentSession {
         }
         let allowed = await withCheckedContinuation { continuation in
             fileChangeContinuation = continuation
-            pendingFileChange = FileChangeRequest(toolName: context.toolCall.name, path: path, exists: exists)
+            pendingFileChange = FileChangeRequest(toolName: context.toolCall.name, path: path, exists: exists, inWorkspace: !isContainer)
         }
         return allowed ? nil : BeforeToolCallResult(block: true, reason: "The user declined this change to \(path).")
+    }
+
+    /// Whether a path the agent named exists, in the workspace or in another app's container.
+    private func fileExists(at path: String) async -> Bool {
+        if let parsed = ContainerPath.parse(path) {
+            guard let containers, containers.isAvailable else { return false }
+            let all = (try? await containers.containers()) ?? []
+            guard let container = all.first(where: { $0.kind == parsed.kind && $0.identifier == parsed.identifier }),
+                  let root = try? await containers.root(for: container) else { return false }
+            return FileManager.default.fileExists(atPath: root.appendingPathComponent(parsed.relativePath).path)
+        }
+        return (try? workspace.resolve(path)).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
 
     private func handle(_ event: AgentEvent) {

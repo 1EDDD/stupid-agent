@@ -25,6 +25,8 @@ final class AppModel {
     private(set) var conversations: [ConversationSummary]
     let workspace: Workspace
     let store: ConversationStore
+    /// Other apps' containers, when this build and OS can reach them.
+    private let containers = SandboxContainers()
     private let settingsStore = SettingsStore()
     /// Open sessions, so a running conversation keeps going while the user looks elsewhere.
     private var sessions: [UUID: AgentSession] = [:]
@@ -78,7 +80,7 @@ final class AppModel {
     }
 
     private func makeSession(_ conversation: Conversation) -> AgentSession {
-        AgentSession(conversation: conversation, settings: settings, apiKey: apiKey, workspace: workspace, store: store)
+        AgentSession(conversation: conversation, settings: settings, apiKey: apiKey, workspace: workspace, store: store, containers: containers)
     }
 
     /// A first file, so the workspace folder shows in the Files app and the agent has something to read.

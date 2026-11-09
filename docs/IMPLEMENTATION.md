@@ -26,6 +26,20 @@
 - swift pi's `Workspace` rejects paths outside the folder.
 - Conversations are stored outside the workspace, in Application Support/Conversations: one JSON file per conversation plus `index.json`. Dates use JSONEncoder's default encoding, because ISO 8601 dropped fractional seconds and saved conversations didn't read back equal.
 
+## Other apps' containers
+
+- **Off by default:** Settings → Workspace → "Access Other Apps" (`ModelSettings.allowOtherApps`). When on, the agent's tools are swift pi's file tools plus `apps`; when off, the tool set is exactly the workspace tools. `AgentSession.update` sets the new tools, so the switch applies to open conversations.
+- **Reach:** `SandboxBridge` is a clean-room implementation of the worse_query technique: it replaces the App Group's `Library/Caches` with a symlink to a target, asks containermanagerd for a sandbox token through `container_query_*`, and consumes it with `sandbox_extension_consume`. The grant lasts for the process.
+- **Prerequisites:** the App Group `group.net.stupidtech.StupidAgent` in `App.entitlements` and `stupid-app.yml` (`APP_GROUPS`), associated with the bundle ID in the Developer Portal. The association is a manual portal step, so a profile made before it doesn't authorize the entitlement and `signing setup` has to be rerun after it.
+- **Platforms:** iOS 26 and 27 on a real device. Simulator builds report the feature unavailable, because containermanager there is the host's.
+- **Paths:** `/apps/<bundle id>/…` for app data containers and `/app-groups/<group id>/…` for App Groups. `apps` lists them. A container path is resolved and granted, then the same swift pi tool runs with the container as its `Workspace`, so workspace containment is unchanged and file-tool behavior is identical.
+- **SQLite:** the `sqlite` tool reads a database from the workspace or a container. It opens read-only (with an `immutable=1` fallback for a WAL database whose sidecars can't be opened), sets `PRAGMA query_only`, rejects non-read-only statements and multiple statements, and stops runaway queries with a progress-handler step budget. Results are JSON rows with a row limit and a 64KB cap; blobs are described, not returned.
+- **Discovery:** `SandboxContainers` lists `/var/mobile/Containers/Data/Application` and `/var/mobile/Containers/Shared/AppGroup` when a parent grant works (App Groups on iOS 27); otherwise it resolves inodes to paths with `fsgetpath`, bounded by the inode of a freshly created file, and reads `com.apple.containermanager.identifier` from each candidate. Containers are cached for the process.
+- **Approvals:** writes still go through "Ask Before Changing Files", and the alert says the file is in another app's container.
+- **Shared container:** every grant removes the App Group's `Library/Caches` and leaves it empty, so that group is reserved for this feature.
+- **Distribution:** private API and a sandbox escape. This can't ship on the App Store.
+
+
 ## Settings
 
 - `ModelSettings` is stored in user defaults. The API key goes in the Keychain (`net.stupidtech.StupidAgent`, account `apiKey`, after first unlock, this device only).

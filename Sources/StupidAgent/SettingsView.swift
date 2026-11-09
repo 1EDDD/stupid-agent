@@ -75,10 +75,14 @@ struct SettingsView: View {
 
                 Section {
                     Toggle("Ask Before Changing Files", isOn: $settings.confirmFileChanges)
+                    Toggle("Access Other Apps", isOn: $settings.allowOtherApps)
                 } header: {
                     Text("Workspace")
                 } footer: {
                     Text("The agent works in this app's folder, which you can open in the Files app under On My iPhone → stupid agent.")
+                    if settings.allowOtherApps {
+                        Text("The agent can also read and write files in other apps' containers. Requires iOS 26 or later on a real device.")
+                    }
                 }
 
                 if let saveError {

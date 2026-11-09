@@ -21,11 +21,15 @@ Sources/
     AgentChatView.swift   # Chat screen: stupid chatkit's chat, Stop, the file-change alert
     AgentChatAdapter.swift # ChatAdapter: session entries → chat kit messages, sends through the session
     SettingsView.swift    # Bring-your-own-model settings
+    SandboxBridge.swift   # Sandbox extensions for other apps' containers (worse_query technique)
+    SandboxContainers.swift # Container discovery and grants, as AppContainerAccess
   StupidAgentCore/        # No UI; tested with `swift test` on macOS
     ModelSettings.swift   # Provider presets, ModelSettings, SettingsStore, model listing
     Keychain.swift
     ConversationStore.swift
     ChatEntries.swift     # Transcript → chat entries (user, agent response with thinking and tools, notices)
+    AppContainers.swift   # AppContainer, AppContainerAccess, container paths and tools
+    SQLiteTool.swift      # Read-only SQLite query tool
     AgentSession.swift    # One conversation: the swift pi Agent, file-change approvals, saving
 Tests/StupidAgentCoreTests/
 ```

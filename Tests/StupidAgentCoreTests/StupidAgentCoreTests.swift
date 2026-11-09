@@ -2,6 +2,7 @@ import Foundation
 import PiAgent
 import PiAI
 import PiTools
+import SQLite3
 @testable import StupidAgentCore
 import Testing
 
@@ -145,5 +146,156 @@ private actor Counter {
         #expect(!FileManager.default.fileExists(atPath: workspace.root.appendingPathComponent("out.txt").path))
         let result = session.messages.compactMap { if case let .llm(.toolResult(result)) = $0 { result } else { nil } }.first
         #expect(result?.isError == true)
+    }
+}
+
+private struct FakeContainers: AppContainerAccess {
+    let root: URL
+
+    var isAvailable: Bool { true }
+
+    func containers() async throws -> [AppContainer] {
+        [
+            AppContainer(kind: .app, identifier: "com.example.notes", path: root.path),
+            AppContainer(kind: .group, identifier: "group.com.example", path: root.path),
+        ]
+    }
+
+    func root(for container: AppContainer) async throws -> URL { root }
+}
+
+private func text(of result: AgentToolResult) -> String {
+    result.content.compactMap { content in
+        if case let .text(text) = content { text.text } else { nil }
+    }.joined(separator: "\n")
+}
+
+@Suite struct ContainerToolTests {
+    func makeTools() throws -> (workspace: Workspace, tools: [AgentTool], containerRoot: URL) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("containers-\(UUID().uuidString)")
+        let workspace = Workspace(root: root.appendingPathComponent("workspace"))
+        let containerRoot = root.appendingPathComponent("container")
+        try FileManager.default.createDirectory(at: workspace.root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
+        return (workspace, agentFileTools(workspace: workspace, containers: FakeContainers(root: containerRoot)), containerRoot)
+    }
+
+    @Test func parsesContainerPaths() {
+        #expect(ContainerPath.parse("/apps/com.example.notes/Documents/a.txt") == ContainerPath(kind: .app, identifier: "com.example.notes", relativePath: "Documents/a.txt"))
+        #expect(ContainerPath.parse("apps/com.example.notes")?.relativePath == ".")
+        #expect(ContainerPath.parse("/app-groups/group.com.example/") == ContainerPath(kind: .group, identifier: "group.com.example", relativePath: "."))
+        #expect(ContainerPath.parse("/other/com.example.notes/x") == nil)
+        #expect(ContainerPath.parse("/apps/../etc/passwd") == nil)
+        #expect(ContainerPath.parse("notes.md") == nil)
+    }
+
+    @Test func listsContainers() async throws {
+        let (_, tools, _) = try makeTools()
+        let apps = try #require(tools.first { $0.name == "apps" })
+        let output = text(of: try await apps.execute("1", [:], { _ in }))
+        #expect(output.contains("/apps/com.example.notes"))
+        #expect(output.contains("/app-groups/group.com.example"))
+    }
+
+    @Test func readsAndWritesInAContainer() async throws {
+        let (workspace, tools, containerRoot) = try makeTools()
+        try "hello".write(to: containerRoot.appendingPathComponent("note.txt"), atomically: true, encoding: .utf8)
+
+        let read = try #require(tools.first { $0.name == "read" })
+        let readResult = text(of: try await read.execute("1", ["path": "/apps/com.example.notes/note.txt"], { _ in }))
+        #expect(readResult.contains("hello"))
+
+        let write = try #require(tools.first { $0.name == "write" })
+        _ = try await write.execute("2", ["path": "/app-groups/group.com.example/new.txt", "content": "written"], { _ in })
+        #expect(try String(contentsOf: containerRoot.appendingPathComponent("new.txt"), encoding: .utf8) == "written")
+
+        let ls = try #require(tools.first { $0.name == "ls" })
+        let listing = text(of: try await ls.execute("3", ["path": "/apps/com.example.notes"], { _ in }))
+        #expect(listing.contains("note.txt"))
+
+        // Workspace paths still go to the workspace.
+        try "in workspace".write(to: workspace.root.appendingPathComponent("mine.txt"), atomically: true, encoding: .utf8)
+        let workspaceRead = text(of: try await read.execute("4", ["path": "mine.txt"], { _ in }))
+        #expect(workspaceRead.contains("in workspace"))
+    }
+
+    @Test func rejectsUnknownContainers() async throws {
+        let (_, tools, _) = try makeTools()
+        let read = try #require(tools.first { $0.name == "read" })
+        await #expect(throws: WorkspaceError.self) {
+            try await read.execute("1", ["path": "/apps/com.example.other/note.txt"], { _ in })
+        }
+    }
+
+    @Test func disabledAccessKeepsTheWorkspaceTools() throws {
+        let (workspace, _, _) = try makeTools()
+        let tools = agentFileTools(workspace: workspace, containers: nil)
+        #expect(!tools.contains { $0.name == "apps" })
+        #expect(tools.map(\.name) == ["read", "write", "edit", "ls", "find", "grep", "sqlite"])
+    }
+}
+
+private func makeDatabase(in directory: URL) throws -> URL {
+    let url = directory.appendingPathComponent("data.sqlite")
+    var database: OpaquePointer?
+    guard sqlite3_open(url.path, &database) == SQLITE_OK, let database else {
+        throw WorkspaceError("Could not create a test database.")
+    }
+    defer { sqlite3_close(database) }
+    let sql = """
+    CREATE TABLE notes (id INTEGER PRIMARY KEY, title TEXT);
+    INSERT INTO notes (title) VALUES ('alpha'), ('beta');
+    """
+    guard sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK else {
+        throw WorkspaceError("Could not fill the test database.")
+    }
+    return url
+}
+
+@Suite struct SQLiteToolTests {
+    func makeWorkspace() throws -> (Workspace, URL) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("sqlite-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let workspace = Workspace(root: root)
+        _ = try makeDatabase(in: root)
+        return (workspace, root)
+    }
+
+    @Test func listsTablesWhenNoQueryIsGiven() async throws {
+        let (workspace, _) = try makeWorkspace()
+        let tool = sqliteTool(workspace: workspace)
+        let output = text(of: try await tool.execute("1", ["path": "data.sqlite"], { _ in }))
+        #expect(output.contains("\"name\":\"notes\""))
+        #expect(output.contains("\"type\":\"table\""))
+    }
+
+    @Test func readsRowsAndTruncates() async throws {
+        let (workspace, _) = try makeWorkspace()
+        let tool = sqliteTool(workspace: workspace)
+        let output = text(of: try await tool.execute("1", ["path": "data.sqlite", "query": "SELECT * FROM notes ORDER BY id"], { _ in }))
+        #expect(output.contains("\"title\":\"alpha\""))
+        #expect(output.contains("\"title\":\"beta\""))
+
+        let limited = text(of: try await tool.execute("2", ["path": "data.sqlite", "query": "SELECT * FROM notes", "limit": 1], { _ in }))
+        #expect(limited.contains("Truncated to 1 row"))
+    }
+
+    @Test func refusesWrites() async throws {
+        let (workspace, _) = try makeWorkspace()
+        let tool = sqliteTool(workspace: workspace)
+        await #expect(throws: WorkspaceError.self) {
+            try await tool.execute("1", ["path": "data.sqlite", "query": "INSERT INTO notes (title) VALUES ('gamma')"], { _ in })
+        }
+        let output = text(of: try await tool.execute("2", ["path": "data.sqlite", "query": "SELECT COUNT(*) AS count FROM notes"], { _ in }))
+        #expect(output.contains("\"count\":2"))
+    }
+
+    @Test func readsAContainerDatabase() async throws {
+        let (workspace, tools, containerRoot) = try ContainerToolTests().makeTools()
+        _ = try makeDatabase(in: containerRoot)
+        let sqlite = try #require(tools.first { $0.name == "sqlite" })
+        let output = text(of: try await sqlite.execute("1", ["path": "/apps/com.example.notes/data.sqlite", "query": "SELECT title FROM notes ORDER BY id"], { _ in }))
+        #expect(output.contains("\"title\":\"alpha\""))
+        #expect(workspace.root.path.isEmpty == false)
     }
 }

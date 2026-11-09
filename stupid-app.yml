@@ -5,6 +5,6 @@ deploymentTarget: "18.0"
 infoPath: Info.plist
 entitlementsPath: App.entitlements
 # deviceFamily: iphone
-# capabilities:
-#   - entitlementKey: aps-environment
-#     type: PUSH_NOTIFICATIONS
+capabilities:
+  - entitlementKey: com.apple.security.application-groups
+    type: APP_GROUPS
