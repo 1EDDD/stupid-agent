@@ -102,8 +102,23 @@ final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatBut
     private func refresh() {
         let entries = session.entries
         let lastErrorId = session.canRetry ? entries.last(where: \.isError)?.id : nil
-        messages = entries.map { message(for: $0, offersRetry: $0.id == lastErrorId) }
+        messages = entries.flatMap { messages(for: $0, offersRetry: $0.id == lastErrorId) }
         onChange?()
+    }
+
+    /// One bubble per entry, except a response whose thinking came before its text: the kit draws embeds after a
+    /// bubble's text, so the thinking gets a bubble of its own ahead of it.
+    private func messages(for entry: ChatEntry, offersRetry: Bool) -> [ChatMessage] {
+        guard entry.kind == .agent, entry.text != nil, !entry.thinking.isEmpty else {
+            return [message(for: entry, offersRetry: offersRetry)]
+        }
+        var thinking = entry
+        thinking.id = entry.id + "-thinking"
+        thinking.text = nil
+        thinking.toolCalls = []
+        var reply = entry
+        reply.thinking = []
+        return [message(for: thinking, offersRetry: false), message(for: reply, offersRetry: offersRetry)]
     }
 
     private func message(for entry: ChatEntry, offersRetry: Bool) -> ChatMessage {

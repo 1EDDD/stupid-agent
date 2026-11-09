@@ -145,6 +145,10 @@ public final class AgentSession {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         notice = nil
+        // The first message names the chat right away, not when the run ends.
+        if conversation.title == "New chat", let title = Conversation.title(for: [.user(text)]) {
+            conversation.title = title
+        }
         queued.append(QueuedMessage(text: text))
         if isRunning {
             Task { await agent.steer(.user(text)) }

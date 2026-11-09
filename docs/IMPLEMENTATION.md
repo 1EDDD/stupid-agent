@@ -8,6 +8,7 @@
   - its tools are `fileTools(workspace:)`
   - its transcript is the conversation's
 - **Messages:** the agent's event stream is the only source of `AgentSession.messages`. The run finishes, and the conversation is saved, when the `agentEnd` event is handled. An earlier version replaced `messages` with the agent's state after `prompt()` returned. Events still queued then were appended again, which duplicated replies.
+- **Title:** a new conversation takes its title from the first message as soon as it is sent, not when the run ends.
 - **Sending while running:** a message sent while the agent runs goes to `Agent.steer`. It is read after the current tool calls, before the next request.
 - **Retry:** drops the failed responses at the end of the agent's transcript (keeping its leading system message), then calls `continueRun()`.
 - **Stop:** `Agent.abort()`. It also declines a pending file-change request.
@@ -40,7 +41,8 @@
 - The chat is stupid chatkit's (`NetworkChatView` driven by `AdapterChatViewModel`), through `AgentChatAdapter`.
 - **Mapping:** `chatEntries(...)` turns the transcript into entries, and the adapter maps them to `ChatMessage`s:
   - a user message is an own bubble
-  - each agent response is one Markdown bubble, with its thinking ("Thought") and tool calls as `.message` embeds; a tool call's embed shows its title (`Read notes.md`, `· Failed`, `· Stopped`) over its output
+  - each agent response is one Markdown bubble, with its thinking ("Thought") and tool calls as `.message` embeds; a tool call's embed shows its title (`Read notes.md`, `· Failed`, `· Stopped`) over its output. `ls` of the workspace root reads "List", not "List ."
+  - a response with both thinking and text puts the thinking in a bubble of its own ahead of the text, since the kit draws embeds after a bubble's text and the model thought first
   - an error is a notice bubble from the agent with a Retry button (`ChatButtonPressing`); the kit draws system-sender notices as captions without buttons
   - "Stopped" is a system caption
 - **Updates:** the adapter is `ChatLiveUpdating`. It observes the session with `withObservationTracking` and calls `onChange`; there is no polling.
@@ -57,3 +59,4 @@
   - the chatkit screen: a tool call (`ls`) and its answer
   - the file-change alert: a write after Allow, and a declined write shown as Failed
   - a failed request ("Could not connect to the server.") with Retry, retried after the server came back
+- On the same simulator against OpenRouter (`openrouter/free`): list, read and write with a real model, the file-change alert, and streamed reasoning.

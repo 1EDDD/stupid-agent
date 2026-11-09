@@ -25,6 +25,13 @@ import Testing
         #expect(entries[2].text == "Done")
     }
 
+    @Test func namesWhatToolCallsWorkOn() {
+        #expect(toolSummary(name: "ls", arguments: ["path": "."]) == "")
+        #expect(toolSummary(name: "ls", arguments: ["path": "notes"]) == "notes")
+        #expect(ToolCallItem(id: "1", name: "ls", summary: "", arguments: [:], status: .succeeded).title == "List")
+        #expect(toolSummary(name: "grep", arguments: ["pattern": "todo", "path": "notes"]) == "todo in notes")
+    }
+
     @Test func marksUnfinishedToolCalls() {
         let call = ToolCall(id: "c1", name: "write", arguments: ["path": "a.txt"])
         let messages: [AgentMessage] = [.llm(.assistant(AssistantMessage(content: [.toolCall(call)], api: "x", provider: "x", model: "x", stopReason: .toolUse)))]
@@ -116,6 +123,8 @@ private actor Counter {
     @Test func runsToolsAndSaves() async throws {
         let (session, workspace, store) = try makeSession(confirm: false)
         session.send("write a file")
+        // Titled as soon as it's sent.
+        #expect(session.conversation.title == "write a file")
         try await waitUntil { !session.isRunning && session.messages.contains { $0.assistant?.text == "Wrote it" } }
         #expect(try String(contentsOf: workspace.root.appendingPathComponent("out.txt"), encoding: .utf8) == "hello")
         #expect(store.list().first?.title == "write a file")

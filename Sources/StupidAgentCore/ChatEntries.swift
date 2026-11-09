@@ -162,7 +162,8 @@ public struct QueuedMessage: Identifiable, Hashable, Sendable {
 public func toolSummary(name: String, arguments: JSONObject) -> String {
     switch name {
     case "read", "write", "edit": arguments["path"]?.stringValue ?? ""
-    case "ls": arguments["path"]?.stringValue ?? ""
+    // The workspace root needs no name: "List", not "List .".
+    case "ls": arguments["path"]?.stringValue.flatMap { [".", "./", ""].contains($0) ? nil : $0 } ?? ""
     case "find": arguments["pattern"]?.stringValue ?? ""
     case "grep": [arguments["pattern"]?.stringValue, arguments["path"]?.stringValue].compactMap(\.self).joined(separator: " in ")
     default: arguments.keys.sorted().first.flatMap { arguments[$0]?.stringValue } ?? ""
