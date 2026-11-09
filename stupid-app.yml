@@ -8,3 +8,4 @@ entitlementsPath: App.entitlements
 capabilities:
   - entitlementKey: com.apple.security.application-groups
     type: APP_GROUPS
+iconPath: Resources/AppIcon.png
