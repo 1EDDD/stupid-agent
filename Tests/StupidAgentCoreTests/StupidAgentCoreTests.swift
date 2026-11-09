@@ -99,18 +99,61 @@ import Testing
         #expect(settings.webSearchProvider == .exa)
     }
 
+    @Test func cleansGeneratedTitles() {
+        #expect(TitleGenerator.clean("\"Plan My Week.\"\n\nmore") == "Plan My Week")
+        #expect(TitleGenerator.clean("Title: **Swift Release Dates**") == "Swift Release Dates")
+        #expect(TitleGenerator.clean("  \n ") == nil)
+        #expect(TitleGenerator.clean(String(repeating: "a", count: 80))?.count == 61)
+    }
+
+    @Test func previewsTheLastMessage() {
+        let messages: [AgentMessage] = [
+            .user("first"),
+            .llm(.assistant(AssistantMessage(content: [.text(TextContent(text: "Here is\n\nthe answer"))], api: "x", provider: "x", model: "x", stopReason: .stop))),
+            .llm(.assistant(AssistantMessage(content: [.toolCall(ToolCall(id: "1", name: "ls", arguments: [:]))], api: "x", provider: "x", model: "x", stopReason: .toolUse))),
+        ]
+        #expect(Conversation.preview(for: messages) == "Here is the answer")
+        #expect(Conversation.preview(for: [.user("only you")]) == "only you")
+        let markdown = AgentMessage.llm(.assistant(AssistantMessage(content: [.text(TextContent(text: "Wrote `notes/hello.md` with **two** lines, see [docs](https://x.test)"))], api: "x", provider: "x", model: "x", stopReason: .stop)))
+        #expect(Conversation.preview(for: [markdown]) == "Wrote notes/hello.md with two lines, see docs")
+        #expect(Conversation.preview(for: []) == nil)
+    }
+
+    @Test func backfillsPreviewsFromConversations() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("conversations-\(UUID().uuidString)")
+        let store = ConversationStore(directory: directory)
+        let conversation = Conversation(title: "Old", messages: [.user("hello there")])
+        try store.save(conversation)
+        // An index from before previews.
+        let index = directory.appendingPathComponent("index.json")
+        try JSONEncoder().encode([ConversationSummary(id: conversation.id, title: "Old", updatedAt: conversation.updatedAt)]).write(to: index)
+        #expect(store.list().first?.preview == "hello there")
+        #expect(try JSONDecoder().decode([ConversationSummary].self, from: Data(contentsOf: index)).first?.preview == "hello there")
+    }
+
+    @Test func readsIndexesSavedBeforePreviews() throws {
+        let saved = #"[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","title":"Old","updatedAt":0}]"#
+        let summaries = try JSONDecoder().decode([ConversationSummary].self, from: Data(saved.utf8))
+        #expect(summaries.first?.preview == nil)
+    }
+
     @Test func retryDropsFailedResponses() {
         let failed = AgentMessage.llm(.assistant(AssistantMessage(api: "x", provider: "x", model: "x", stopReason: .error)))
         #expect(retryTranscript([.user("a"), failed, failed]).map(\.role) == ["user"])
     }
 }
 
-/// A provider that writes a file, then answers.
-private func scriptedStream(path: String) -> StreamFunction {
+/// A provider that writes a file, then answers; title requests get `title`.
+private func scriptedStream(path: String, title: String = "Writing Out A File") -> StreamFunction {
     let calls = Counter()
-    return { model, _, _ in
-        let turn = await calls.next()
+    return { model, context, _ in
         let stream = AssistantMessageEventStream()
+        if getCurrentSystemPrompt(context.messages) == TitleGenerator.instructions {
+            stream.push(.done(reason: .stop, message: AssistantMessage(content: [.text(TextContent(text: "\"\(title).\""))], api: model.api, provider: model.provider, model: model.id, stopReason: .stop)))
+            stream.end()
+            return stream
+        }
+        let turn = await calls.next()
         let message = turn == 0
             ? AssistantMessage(content: [.toolCall(ToolCall(id: "w1", name: "write", arguments: ["path": .string(path), "content": "hello"]))], api: model.api, provider: model.provider, model: model.id, stopReason: .toolUse)
             : AssistantMessage(content: [.text(TextContent(text: "Wrote it"))], api: model.api, provider: model.provider, model: model.id, stopReason: .stop)
@@ -152,9 +195,12 @@ private actor Counter {
         session.send("write a file")
         // Titled as soon as it's sent.
         #expect(session.conversation.title == "write a file")
-        try await waitUntil { !session.isRunning && session.messages.contains { $0.assistant?.text == "Wrote it" } }
+        try await waitUntil { !session.isRunning && session.messages.contains { $0.assistant?.text == "Wrote it" } && session.conversation.title != "write a file" }
         #expect(try String(contentsOf: workspace.root.appendingPathComponent("out.txt"), encoding: .utf8) == "hello")
-        #expect(store.list().first?.title == "write a file")
+        // Then the model's title, cleaned of quotes and the period, replaces it and is saved.
+        #expect(session.conversation.title == "Writing Out A File")
+        #expect(store.list().first?.title == "Writing Out A File")
+        #expect(store.list().first?.preview == "Wrote it")
         #expect(session.queued.isEmpty)
         // Each message once: events are the only source of the transcript.
         #expect(session.messages.filter { $0.role != "system" }.map(\.role) == ["user", "assistant", "toolResult", "assistant"])

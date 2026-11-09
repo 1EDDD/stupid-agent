@@ -20,20 +20,19 @@ struct ConversationsView: View {
                     }
                 }
                 ForEach(model.conversations) { conversation in
-                    NavigationLink(value: conversation.id) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(conversation.title)
-                                .lineLimit(1)
-                            Text(conversation.updatedAt, format: .relative(presentation: .named))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    ConversationRow(conversation: conversation)
+                        // The link without its chevron: the row draws one beside the time, as Messages does.
+                        .background(NavigationLink(value: conversation.id) { EmptyView() }.opacity(0))
+                        .alignmentGuide(.listRowSeparatorLeading) { dimensions in dimensions[.leading] + ConversationRow.textInset }
+                        // Messages has no line above the first row.
+                        .listRowSeparator(conversation.id == model.conversations.first?.id ? .hidden : .automatic, edges: .top)
                     .swipeActions {
                         Button("Delete", role: .destructive) { pendingDelete = conversation }
                     }
                 }
             }
+            .listStyle(.plain)
+            .listSectionSeparator(.hidden, edges: .top)
             .overlay {
                 if model.conversations.isEmpty, model.isConfigured {
                     ContentUnavailableView("No Chats", systemImage: "bubble.left.and.text.bubble.right", description: Text("Start a chat to ask the agent to work with your files."))
@@ -74,6 +73,61 @@ struct ConversationsView: View {
             }
             .onChange(of: path) { model.refresh() }
         }
+    }
+}
+
+/// A conversation in the list, laid out like a Messages row: avatar, title with the time and a chevron, and the last
+/// message under it.
+struct ConversationRow: View {
+    let conversation: ConversationSummary
+
+    static let avatarSize: CGFloat = 44
+    static let textInset: CGFloat = avatarSize + 12
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "brain")
+                .font(.title3)
+                .foregroundStyle(.white)
+                .frame(width: Self.avatarSize, height: Self.avatarSize)
+                .background(Circle().fill(Color.gray.gradient))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(conversation.title)
+                        .font(.body.weight(.semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(Self.shortDate(conversation.updatedAt))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .imageScale(.small)
+                        .foregroundStyle(.tertiary)
+                }
+                Text(conversation.preview ?? "No messages yet")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2, reservesSpace: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+
+    /// As Messages shows dates: the time today, "Yesterday", the weekday within a week, else the date.
+    static func shortDate(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day, days < 7 {
+            return date.formatted(.dateTime.weekday(.wide))
+        }
+        return date.formatted(date: .numeric, time: .omitted)
     }
 }
 

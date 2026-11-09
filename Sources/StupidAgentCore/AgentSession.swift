@@ -90,6 +90,9 @@ public final class AgentSession {
     @ObservationIgnored private var runTask: Task<Void, Never>?
     @ObservationIgnored private var fileChangeContinuation: CheckedContinuation<Bool, Never>?
     @ObservationIgnored private var settings: ModelSettings
+    @ObservationIgnored private var apiKey: String?
+    @ObservationIgnored private let streamFunction: StreamFunction
+    @ObservationIgnored private var titleTask: Task<Void, Never>?
 
     /// The model this conversation talks to.
     public var modelId: String { settings.modelId }
@@ -113,6 +116,8 @@ public final class AgentSession {
     ) {
         self.conversation = conversation
         self.settings = settings
+        self.apiKey = apiKey
+        self.streamFunction = streamFunction
         self.store = store
         self.workspace = workspace
         self.containers = containers
@@ -156,6 +161,7 @@ public final class AgentSession {
     /// Applies changed settings to later requests.
     public func update(settings: ModelSettings, apiKey: String?) {
         self.settings = settings
+        self.apiKey = apiKey
         let containers = containers
         let workspace = workspace
         Task {
@@ -180,6 +186,7 @@ public final class AgentSession {
         // The first message names the chat right away, not when the run ends.
         if conversation.title == "New chat", let title = Conversation.title(for: [.user(text)]) {
             conversation.title = title
+            generateTitle(firstMessage: text, fallback: title)
         }
         queued.append(QueuedMessage(text: text))
         if isRunning {
@@ -197,6 +204,25 @@ public final class AgentSession {
                 queued.removeAll { $0.text == text }
                 notice = error.localizedDescription
                 finishRun()
+            }
+        }
+    }
+
+    /// Asks the model for a short title, beside the run, and uses it unless the title changed meanwhile. A failure
+    /// keeps the title taken from the first message.
+    private func generateTitle(firstMessage: String, fallback: String) {
+        let model = settings.model
+        let options = StreamOptions(apiKey: apiKey, headers: Self.headers(for: settings))
+        let streamFunction = streamFunction
+        titleTask = Task { [weak self] in
+            guard let title = await TitleGenerator.generate(firstMessage: firstMessage, model: model, options: options, streamFunction: streamFunction) else { return }
+            guard let self, conversation.title == fallback else { return }
+            conversation.title = title
+            conversation.messages = messages
+            do {
+                try store.save(conversation)
+            } catch {
+                notice = "Couldn't save the conversation: \(error.localizedDescription)"
             }
         }
     }

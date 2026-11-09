@@ -8,7 +8,7 @@
   - its tools are `fileTools(workspace:)`
   - its transcript is the conversation's
 - **Messages:** the agent's event stream is the only source of `AgentSession.messages`. The run finishes, and the conversation is saved, when the `agentEnd` event is handled. An earlier version replaced `messages` with the agent's state after `prompt()` returned. Events still queued then were appended again, which duplicated replies.
-- **Title:** a new conversation takes its title from the first message as soon as it is sent, not when the run ends.
+- **Title:** a new conversation takes its title from the first message as soon as it is sent. Beside the run, `TitleGenerator` asks the same model for a title of at most six words (thinking off, 100 tokens). The answer's first line, without quotes, markdown or a closing period, replaces the first-message title unless the title changed meanwhile, and is saved. A failed or empty answer keeps the first-message title, since a title isn't worth an error.
 - **Sending while running:** a message sent while the agent runs goes to `Agent.steer`. It is read after the current tool calls, before the next request.
 - **Retry:** drops the failed responses at the end of the agent's transcript (keeping its leading system message), then calls `continueRun()`.
 - **Stop:** `Agent.abort()`. It also declines a pending file-change request.
@@ -57,6 +57,11 @@
 - **OpenRouter:** requests carry `HTTP-Referer` and `X-Title` so OpenRouter shows the app's name.
 - **Local servers:** ATS allows local networking (`NSAllowsLocalNetworking`), with a local network usage description, for models on a computer on the same network.
 - **Form loading:** the settings form loads the saved settings once. `onAppear` runs again when the model picker pops back and used to discard edits. The provider picker sets the base URL through its binding only when the user picks; an `onChange` used to also fire while the saved settings loaded.
+
+## Conversation list
+
+- **Rows:** laid out like Messages: a gray avatar with the brain, the title (semibold) with the time and a chevron (the navigation link's own chevron is hidden), and two lines of the last message. The time reads as Messages shows it: the time today, "Yesterday", the weekday within a week, else the date. The list is plain, with separators starting at the text and none above the first row.
+- **Previews:** `ConversationSummary.preview` is the agent's last reply (its Markdown rendered to plain text), else the user's last message, on one line, up to 200 characters. It's kept in `index.json`. Entries saved before previews get one from their conversation the first time the list reads them, and the index is rewritten.
 
 ## Chat screen
 
