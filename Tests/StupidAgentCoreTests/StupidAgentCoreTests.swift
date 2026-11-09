@@ -5,42 +5,41 @@ import PiTools
 @testable import StupidAgentCore
 import Testing
 
-@Suite struct ChatItemTests {
-    @Test func buildsRowsFromATranscript() {
+@Suite struct ChatEntryTests {
+    @Test func groupsAResponseWithItsThinkingAndTools() {
         let call = ToolCall(id: "c1", name: "read", arguments: ["path": "notes.md"])
         let messages: [AgentMessage] = [
             .llm(.system(SystemMessage(content: "prompt", timestamp: 0))),
             .user("hi"),
-            .llm(.assistant(AssistantMessage(content: [.thinking(ThinkingContent(thinking: "hmm")), .toolCall(call)], api: "x", provider: "x", model: "x", stopReason: .toolUse, timestamp: 1))),
+            .llm(.assistant(AssistantMessage(content: [.thinking(ThinkingContent(thinking: "hmm")), .text(TextContent(text: "Looking")), .toolCall(call)], api: "x", provider: "x", model: "x", stopReason: .toolUse, timestamp: 1))),
             .llm(.toolResult(ToolResultMessage(toolCallId: "c1", toolName: "read", content: [.text(TextContent(text: "contents"))], isError: false))),
             .llm(.assistant(AssistantMessage(content: [.text(TextContent(text: "Done"))], api: "x", provider: "x", model: "x", stopReason: .stop, timestamp: 2))),
         ]
-        let items = chatItems(messages: messages, streaming: nil, runningToolCalls: [], isRunning: false)
-        #expect(items.count == 4)
-        guard case let .toolCall(item) = items[2] else {
-            Issue.record("Expected a tool call row")
-            return
-        }
-        #expect(item.status == .succeeded)
-        #expect(item.summary == "notes.md")
-        #expect(item.output == "contents")
-        if case let .text(_, text, _) = items[3] { #expect(text == "Done") }
+        let entries = chatEntries(messages: messages, streaming: nil, runningToolCalls: [], isRunning: false)
+        #expect(entries.map(\.kind) == [.user, .agent, .agent])
+        #expect(entries[1].text == "Looking")
+        #expect(entries[1].thinking == ["hmm"])
+        #expect(entries[1].toolCalls.first?.status == .succeeded)
+        #expect(entries[1].toolCalls.first?.title == "Read notes.md")
+        #expect(entries[1].toolCalls.first?.output == "contents")
+        #expect(entries[2].text == "Done")
     }
 
     @Test func marksUnfinishedToolCalls() {
         let call = ToolCall(id: "c1", name: "write", arguments: ["path": "a.txt"])
         let messages: [AgentMessage] = [.llm(.assistant(AssistantMessage(content: [.toolCall(call)], api: "x", provider: "x", model: "x", stopReason: .toolUse)))]
-        let running = chatItems(messages: messages, streaming: nil, runningToolCalls: ["c1"], isRunning: true)
-        let stopped = chatItems(messages: messages, streaming: nil, runningToolCalls: [], isRunning: false)
-        if case let .toolCall(item) = running[0] { #expect(item.status == .running) }
-        if case let .toolCall(item) = stopped[0] { #expect(item.status == .interrupted) }
+        #expect(chatEntries(messages: messages, streaming: nil, runningToolCalls: ["c1"], isRunning: true).first?.toolCalls.first?.status == .running)
+        #expect(chatEntries(messages: messages, streaming: nil, runningToolCalls: [], isRunning: false).first?.toolCalls.first?.status == .interrupted)
     }
 
-    @Test func showsErrors() {
+    @Test func showsErrorsAndQueuedMessages() {
         var failed = AssistantMessage(api: "x", provider: "x", model: "x", stopReason: .error)
         failed.errorMessage = "401 Invalid API key"
-        let items = chatItems(messages: [.llm(.assistant(failed))], streaming: nil, runningToolCalls: [], isRunning: false)
-        #expect(items == [.error(id: items.first?.id ?? "", text: "401 Invalid API key")])
+        let entries = chatEntries(messages: [.llm(.assistant(failed))], streaming: nil, runningToolCalls: [], isRunning: false, queued: [QueuedMessage(text: "next")])
+        #expect(entries.map(\.kind) == [.notice, .user])
+        #expect(entries[0].isError)
+        #expect(entries[0].text == "401 Invalid API key")
+        #expect(entries[1].isSending)
     }
 }
 
@@ -120,6 +119,7 @@ private actor Counter {
         try await waitUntil { !session.isRunning && session.messages.contains { $0.assistant?.text == "Wrote it" } }
         #expect(try String(contentsOf: workspace.root.appendingPathComponent("out.txt"), encoding: .utf8) == "hello")
         #expect(store.list().first?.title == "write a file")
+        #expect(session.queued.isEmpty)
         // Each message once: events are the only source of the transcript.
         #expect(session.messages.filter { $0.role != "system" }.map(\.role) == ["user", "assistant", "toolResult", "assistant"])
         let saved = try store.load(session.conversation.id)

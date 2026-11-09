@@ -42,7 +42,7 @@ struct ConversationsView: View {
             .navigationTitle("Chats")
             .navigationDestination(for: UUID.self) { id in
                 if let session = model.session(for: id) {
-                    ChatView(session: session)
+                    AgentChatView(session: session)
                 } else {
                     ContentUnavailableView("Chat Not Found", systemImage: "exclamationmark.bubble")
                 }

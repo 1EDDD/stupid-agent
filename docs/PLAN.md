@@ -19,7 +19,6 @@ device. The tool set grows over time.
 
 ## Next
 
-- Move the chat screen to stupid chatkit (the chat framework being extracted from stupid social) once it is published.
 - More tools, each running in the app sandbox:
   - fetch a URL
   - web search through a configured service

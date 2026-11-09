@@ -2,7 +2,7 @@
 
 ## Agent core
 
-- **Source:** swift pi, vendored into `Vendor/SwiftPi` at a tag by `scripts/vendor-swift-pi.sh`. The tag and commit are in `Vendor/SwiftPi/VERSION`. stupid-app builds only local sources, so the package isn't resolved by SwiftPM.
+- **Source:** swift pi, a package dependency pinned in `Package.resolved`. It was vendored while stupid-app built only local sources; stupid-app 0.0.27 resolves package dependencies.
 - **Session:** `AgentSession` owns one swift pi `Agent`:
   - its system prompt is `systemPrompt(workspaceName:)`
   - its tools are `fileTools(workspace:)`
@@ -37,13 +37,23 @@
 
 ## Chat screen
 
-- `ChatView` is a plain SwiftUI list built from `chatItems(...)`: user bubbles, assistant text (inline Markdown), thinking and tool calls as disclosure rows, and errors.
-- It is a placeholder for stupid chatkit, which is being extracted from stupid social separately. `ChatItem` is the boundary that an adapter will map.
+- The chat is stupid chatkit's (`NetworkChatView` driven by `AdapterChatViewModel`), through `AgentChatAdapter`.
+- **Mapping:** `chatEntries(...)` turns the transcript into entries, and the adapter maps them to `ChatMessage`s:
+  - a user message is an own bubble
+  - each agent response is one Markdown bubble, with its thinking ("Thought") and tool calls as `.message` embeds; a tool call's embed shows its title (`Read notes.md`, `· Failed`, `· Stopped`) over its output
+  - an error is a notice bubble from the agent with a Retry button (`ChatButtonPressing`); the kit draws system-sender notices as captions without buttons
+  - "Stopped" is a system caption
+- **Updates:** the adapter is `ChatLiveUpdating`. It observes the session with `withObservationTracking` and calls `onChange`; there is no polling.
+- **Typing:** while the agent works and nothing of its reply shows yet, it appears as typing (`ChatTyping`).
+- **Sending:** `send` hands the text to the session and returns nil. The session shows the message as sending (`queued`) until the agent takes it in: at once for a new prompt, after the current tool calls for one that steers a run. A message sent after the agent last checked for steering starts the next run when the current one ends.
+- **Toolbar:** the screen adds Stop while the agent works, and alerts for file changes and failed sends.
+- **Kit settings:** the kit's `ChatKit` launch settings (network icon, events) are left at their defaults.
 
 ## Verified
 
 - `swift test`: core tests, including end-to-end sessions with a scripted provider and real file tools (write, and approval denial).
 - On an iOS 27 simulator against a local mock OpenAI-compatible server:
   - the settings flow, including loading and picking a model
-  - a tool call (`ls`) and its answer
-  - the file-change alert, and a write after Allow
+  - the chatkit screen: a tool call (`ls`) and its answer
+  - the file-change alert: a write after Allow, and a declined write shown as Failed
+  - a failed request ("Could not connect to the server.") with Retry, retried after the server came back

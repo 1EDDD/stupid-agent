@@ -11,15 +11,30 @@ let package = Package(
         // A stupid-app project contains exactly one library product representing the application.
         .library(name: "StupidAgent", targets: ["StupidAgent"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/stephancill/stupid-chatkit", from: "0.1.0"),
+        .package(url: "https://github.com/stephancill/swift-pi", from: "0.1.2"),
+    ],
     targets: [
         // SwiftUI screens.
-        .target(name: "StupidAgent", dependencies: ["StupidAgentCore", "PiAI", "PiTools"]),
+        .target(name: "StupidAgent", dependencies: [
+            "StupidAgentCore",
+            .product(name: "PiAI", package: "swift-pi"),
+            .product(name: "PiTools", package: "swift-pi"),
+            // iOS-only: the kit is UIKit, and `swift test` builds the package on macOS for the core tests.
+            .product(name: "StupidChatKit", package: "stupid-chatkit", condition: .when(platforms: [.iOS])),
+        ]),
         // Settings, storage and the agent session, without UI.
-        .target(name: "StupidAgentCore", dependencies: ["PiAI", "PiAgent", "PiTools"]),
-        // swift pi, vendored by scripts/vendor-swift-pi.sh; don't edit these by hand.
-        .target(name: "PiAI", path: "Vendor/SwiftPi/Sources/PiAI"),
-        .target(name: "PiAgent", dependencies: ["PiAI"], path: "Vendor/SwiftPi/Sources/PiAgent"),
-        .target(name: "PiTools", dependencies: ["PiAI", "PiAgent"], path: "Vendor/SwiftPi/Sources/PiTools"),
-        .testTarget(name: "StupidAgentCoreTests", dependencies: ["StupidAgentCore", "PiAI", "PiAgent"]),
+        .target(name: "StupidAgentCore", dependencies: [
+            .product(name: "PiAI", package: "swift-pi"),
+            .product(name: "PiAgent", package: "swift-pi"),
+            .product(name: "PiTools", package: "swift-pi"),
+        ]),
+        .testTarget(name: "StupidAgentCoreTests", dependencies: [
+            "StupidAgentCore",
+            .product(name: "PiAI", package: "swift-pi"),
+            .product(name: "PiAgent", package: "swift-pi"),
+            .product(name: "PiTools", package: "swift-pi"),
+        ]),
     ]
 )

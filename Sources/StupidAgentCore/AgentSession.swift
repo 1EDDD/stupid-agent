@@ -71,8 +71,14 @@ public final class AgentSession {
     @ObservationIgnored private var fileChangeContinuation: CheckedContinuation<Bool, Never>?
     @ObservationIgnored private var settings: ModelSettings
 
-    public var items: [ChatItem] {
-        chatItems(messages: messages, streaming: streamingMessage, runningToolCalls: runningToolCalls, isRunning: isRunning)
+    /// The model this conversation talks to.
+    public var modelId: String { settings.modelId }
+
+    /// Messages sent that the agent hasn't taken in yet, shown as sending.
+    public private(set) var queued: [QueuedMessage] = []
+
+    public var entries: [ChatEntry] {
+        chatEntries(messages: messages, streaming: streamingMessage, runningToolCalls: runningToolCalls, isRunning: isRunning, queued: queued)
     }
 
     public init(
@@ -139,6 +145,7 @@ public final class AgentSession {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         notice = nil
+        queued.append(QueuedMessage(text: text))
         if isRunning {
             Task { await agent.steer(.user(text)) }
             return
@@ -151,6 +158,7 @@ public final class AgentSession {
             do {
                 try await agent.prompt(text)
             } catch {
+                queued.removeAll { $0.text == text }
                 notice = error.localizedDescription
                 finishRun()
             }
@@ -217,6 +225,9 @@ public final class AgentSession {
         case let .messageEnd(message):
             streamingMessage = nil
             messages.append(message)
+            if case let .llm(.user(user)) = message, let index = queued.firstIndex(where: { $0.text == contentText(user.content) }) {
+                queued.remove(at: index)
+            }
         case let .toolExecutionStart(id, _, _):
             runningToolCalls.insert(id)
         case let .toolExecutionEnd(id, _, _, _, _):
@@ -243,6 +254,20 @@ public final class AgentSession {
             try store.save(conversation)
         } catch {
             notice = "Couldn't save the conversation: \(error.localizedDescription)"
+        }
+        // A message sent after the agent last checked for steering starts the next run.
+        if !queued.isEmpty {
+            isRunning = true
+            runTask = Task {
+                await agent.waitForIdle()
+                do {
+                    try await agent.continueRun()
+                } catch {
+                    queued = []
+                    notice = error.localizedDescription
+                    finishRun()
+                }
+            }
         }
     }
 }

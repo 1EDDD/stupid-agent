@@ -6,11 +6,11 @@ Built on [swift pi](https://github.com/stephancill/swift-pi), a Swift port of [p
 
 ## Build
 
-Requires the `stupid-app` CLI.
+Requires the `stupid-app` CLI, 0.0.27 or later.
 
 ```sh
 swift test                  # core tests
 stupid-app run --simulator  # build, install and launch
 ```
 
-To update swift pi: `scripts/vendor-swift-pi.sh <tag>`.
+The chat screen is [stupid chatkit](https://github.com/stephancill/stupid-chatkit).
