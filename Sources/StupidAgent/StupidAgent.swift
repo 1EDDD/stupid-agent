@@ -25,8 +25,9 @@ final class AppModel {
     private(set) var conversations: [ConversationSummary]
     let workspace: Workspace
     let store: ConversationStore
-    /// Other apps' containers, when this build and OS can reach them.
-    private let containers = SandboxContainers()
+    /// The background index of other apps' containers, and the access object the agent sessions read.
+    let containerIndex = ContainerIndex()
+    private var containers: SandboxContainers { containerIndex.access }
     private let settingsStore = SettingsStore()
     /// Open sessions, so a running conversation keeps going while the user looks elsewhere.
     private var sessions: [UUID: AgentSession] = [:]
@@ -39,6 +40,8 @@ final class AppModel {
         apiKey = settingsStore.apiKey()
         conversations = store.list()
         seedWorkspace(documents)
+        // Index other apps' containers in the background so the list is ready (and up to date) when the agent asks.
+        if settings.allowOtherApps { containerIndex.start() }
     }
 
     var isConfigured: Bool { settings.isComplete(apiKey: apiKey) }
@@ -54,6 +57,8 @@ final class AppModel {
         for session in sessions.values {
             session.update(settings: settings, apiKey: apiKey)
         }
+        // Begin indexing the first time the user turns the feature on.
+        if settings.allowOtherApps { containerIndex.start() }
     }
 
     /// Switches every conversation to a model, as the composer's model menu does.

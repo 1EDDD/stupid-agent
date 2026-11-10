@@ -33,14 +33,34 @@ public struct AppContainer: Identifiable, Hashable, Sendable {
     }
 }
 
+/// Where a container index stands. Discovery of other apps' containers can take minutes on the first run, so it runs
+/// in the background and callers see partial results while it builds.
+public enum ContainerIndexStatus: Sendable, Equatable {
+    /// This build or OS can't reach other containers.
+    case unavailable
+    /// Indexing is in progress. `found` containers are available so far; `scanned`/`total` drive a progress bar
+    /// (`total == 0` means the step isn't countable yet).
+    case indexing(found: Int, scanned: UInt64, total: UInt64)
+    /// The index is complete (the result may still be empty).
+    case ready
+}
+
 /// Access to containers outside the app's own sandbox. The app supplies a platform implementation; tests use a fake.
 public protocol AppContainerAccess: Sendable {
     /// Whether this build and OS can reach other containers at all.
     var isAvailable: Bool { get }
-    /// Every container the agent may use, sorted by kind and identifier.
+    /// Where the background index stands. `containers()` returns whatever is resolved so far.
+    var indexStatus: ContainerIndexStatus { get }
+    /// Every container the agent may use so far, sorted by kind and identifier. Returns partial results while the
+    /// index is still building.
     func containers() async throws -> [AppContainer]
     /// Grants access to a container and returns its directory. The grant lasts for the process lifetime.
     func root(for container: AppContainer) async throws -> URL
+}
+
+public extension AppContainerAccess {
+    /// Implementations that resolve everything synchronously (such as test fakes) are always ready.
+    var indexStatus: ContainerIndexStatus { .ready }
 }
 
 /// A path in the agent's virtual filesystem that points outside the workspace.
@@ -90,13 +110,19 @@ public func appsTool(containers: any AppContainerAccess) -> AgentTool {
         description: "List the other apps' file containers you can read and write. Containers appear as /apps/<bundle id> and /app-groups/<group id>; pass those paths to read, write, edit, ls, find and grep.",
         parameters: ["type": "object", "properties": .object([:]), "required": .array([])]
     ) { _, _, _ in
-        let containers = try await containers.containers()
-        guard !containers.isEmpty else { return AgentToolResult(text: "No other app containers are visible.") }
-        let apps = containers.filter { $0.kind == .app }.map(\.pathPrefix)
-        let groups = containers.filter { $0.kind == .group }.map(\.pathPrefix)
+        let status = containers.indexStatus
+        let list = try await containers.containers()
+        let apps = list.filter { $0.kind == .app }.map(\.pathPrefix)
+        let groups = list.filter { $0.kind == .group }.map(\.pathPrefix)
+
         var sections: [String] = []
+        if case let .indexing(_, scanned, total) = status {
+            let percent = total > 0 ? Int(Double(scanned) / Double(total) * 100) : 0
+            sections.append("Still indexing other apps (\(percent)% done); \(list.count) found so far. Call apps again later for the rest.")
+        }
         if !apps.isEmpty { sections.append("Apps:\n" + apps.joined(separator: "\n")) }
         if !groups.isEmpty { sections.append("App groups:\n" + groups.joined(separator: "\n")) }
+        guard !sections.isEmpty else { return AgentToolResult(text: "No other app containers are visible.") }
         return AgentToolResult(text: sections.joined(separator: "\n\n"))
     }
 }

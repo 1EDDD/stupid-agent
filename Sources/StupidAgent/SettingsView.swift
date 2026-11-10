@@ -86,6 +86,10 @@ struct SettingsView: View {
                     }
                 }
 
+                if settings.allowOtherApps, model.containerIndex.isAvailable {
+                    appIndexSection
+                }
+
                 Section {
                     Picker("Web Search", selection: $settings.webSearchProvider) {
                         ForEach(WebSearchProvider.allCases, id: \.self) { provider in
@@ -121,6 +125,52 @@ struct SettingsView: View {
                 settings = model.settings
                 apiKey = model.apiKey ?? ""
             }
+        }
+    }
+
+    /// Progress and controls for the background index of other apps' containers.
+    @ViewBuilder private var appIndexSection: some View {
+        let index = model.containerIndex
+        Section {
+            switch index.status {
+            case .unavailable:
+                Text("Not available on this device.")
+                    .foregroundStyle(.secondary)
+            case let .indexing(found, _, _):
+                // Apps cluster in low inodes, so nearly all are found in the first moments; the rest of the scan is a
+                // background sweep of empty inode space to catch any recently-installed app. Lead with the found count
+                // (the value, delivered fast) and present the sweep as a secondary completeness check.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(found) apps found")
+                    if let fraction = index.fractionComplete {
+                        ProgressView(value: fraction) {
+                            Text("Checking for recently-installed apps…")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("Starting…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            case .ready:
+                if let lastIndexed = index.lastIndexed {
+                    Text("Last indexed \(lastIndexed.formatted(date: .abbreviated, time: .shortened))")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Not indexed yet.")
+                        .foregroundStyle(.secondary)
+                }
+                Button("Reindex Apps") { index.reindex() }
+            }
+            if let error = index.errorMessage {
+                Text(error).foregroundStyle(.red)
+            }
+        } header: {
+            Text("App Index")
+        } footer: {
+            Text("The agent finds other apps by scanning once in the background; this can take a few minutes the first time. Later launches are instant and pick up newly installed apps automatically.")
         }
     }
 

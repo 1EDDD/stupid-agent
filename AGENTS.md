@@ -22,7 +22,8 @@ Sources/
     AgentChatAdapter.swift # ChatAdapter: session entries → chat kit messages, sends through the session
     SettingsView.swift    # Bring-your-own-model settings
     SandboxBridge.swift   # Sandbox extensions for other apps' containers (worse_query technique)
-    SandboxContainers.swift # Container discovery and grants, as AppContainerAccess
+    SandboxContainers.swift # Container discovery and grants, as AppContainerAccess; background inode-scan index
+    ContainerIndex.swift  # @Observable over the background index, for the Settings progress UI
   StupidAgentCore/        # No UI; tested with `swift test` on macOS
     ModelSettings.swift   # Provider presets, ModelSettings, SettingsStore, model listing
     Keychain.swift
