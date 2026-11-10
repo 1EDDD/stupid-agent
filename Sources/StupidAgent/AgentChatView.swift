@@ -18,13 +18,6 @@ struct AgentChatView: View {
             .sheet(isPresented: $choosingModel) {
                 ModelPickerView()
             }
-            .toolbar {
-                if session.isRunning {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Stop", systemImage: "stop.circle") { session.stop() }
-                    }
-                }
-            }
             .alert(
                 session.pendingFileChange?.title ?? "",
                 isPresented: Binding(get: { session.pendingFileChange != nil }, set: { if !$0 { session.resolveFileChange(allowed: false) } })

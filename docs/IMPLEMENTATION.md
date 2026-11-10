@@ -79,7 +79,8 @@
 - **Typing:** while the agent works and nothing of its reply shows yet, it appears as typing (`ChatTyping`).
 - **Sending:** `send` hands the text to the session and returns nil. The session shows the message as sending (`queued`) until the agent takes it in: at once for a new prompt, after the current tool calls for one that steers a run. A message sent after the agent last checked for steering starts the next run when the current one ends.
 - **Model menu:** the adapter adopts chatkit's `ChatComposerMenus`. A brain icon at the end of the composer's text row opens a menu headed by the current model id, with the recent models (`ModelSettings.recentModelIds`, up to six, most recent first, checkmark on the current) and "Choose Model…". That opens `ModelPickerView`: the server's `GET /models`, searchable, and any typed id ("Use …"). Choosing switches the app-wide model (`AppModel.selectModel`), the same setting Settings changes, so every conversation uses it from its next request. Switching keeps the model being left in the recents, including one set before recents were kept. Settings saved before `recentModelIds` existed decode with defaults (`ModelSettings.init(from:)`).
-- **Toolbar:** the screen adds Stop while the agent works, and alerts for file changes and failed sends.
+- **Stop:** the adapter adopts chatkit's `ChatStoppable` (`isBusy` = `session.isRunning`, `stop()` = `session.stop()`), so while the agent works the composer's send button becomes a stop button in its place; tapping it stops the run. (`observe()` already tracks `isRunning`, so the change reaches the composer through `onChange`.)
+- **Toolbar:** the screen adds alerts for file changes and failed sends.
 - **Kit settings:** the kit's `ChatKit` launch settings (network icon, events) are left at their defaults.
 
 ## Verified

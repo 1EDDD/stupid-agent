@@ -12,7 +12,7 @@ extension ChatNetwork {
 /// One agent conversation as a stupid chatkit chat: translates the session's entries to chat messages and sends
 /// through the session. The session pushes changes, so there is no polling.
 @MainActor
-final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatButtonPressing, ChatComposerMenus {
+final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatButtonPressing, ChatComposerMenus, ChatStoppable {
     let session: AgentSession
     let app: AppModel
     /// Opens the list of every model the server has.
@@ -81,6 +81,12 @@ final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatBut
         guard session.isRunning, session.streamingMessage == nil, session.runningToolCalls.isEmpty else { return [] }
         return [Self.agentUser.name ?? "stupid agent"]
     }
+
+    /// While the agent is working, the composer's send button becomes a stop button. `observe()` already tracks
+    /// `session.isRunning`, so a change here reaches the composer through `onChange`.
+    var isBusy: Bool { session.isRunning }
+
+    func stop() { session.stop() }
 
     func draftDidChange(_: String) {}
 
