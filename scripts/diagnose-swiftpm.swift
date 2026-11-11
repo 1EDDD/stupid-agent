@@ -1,12 +1,12 @@
 import Foundation
 
-private struct DependencyNode: Decodable {
+struct DependencyNode: Decodable {
     let identity: String
     let path: String
     let dependencies: [DependencyNode]
 }
 
-private struct PackageDump: Decodable {
+struct PackageDump: Decodable {
     struct Product: Decodable {
         let name: String
         let targets: [String]
