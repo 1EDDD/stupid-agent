@@ -71,9 +71,10 @@ private func run(_ arguments: [String]) throws -> (Int32, String, String) {
     )
 }
 
+let swiftExecutable = CommandLine.arguments.dropFirst().first ?? "swift"
 let decoder = JSONDecoder()
 decoder.keyDecodingStrategy = .convertFromSnakeCase
-let graphResult = try run(["swift", "package", "show-dependencies", "--format", "json"])
+let graphResult = try run([swiftExecutable, "package", "show-dependencies", "--format", "json"])
 guard graphResult.0 == 0 else {
     fputs("show-dependencies failed:\n\(graphResult.2)\n", stderr)
     exit(1)
@@ -101,7 +102,7 @@ let allPackages = [(root.identity, rootURL)] + packages.map {
 }
 var failures = 0
 for (identity, url) in allPackages {
-    let result = try run(["swift", "package", "--package-path", url.path, "describe", "--type", "json"])
+    let result = try run([swiftExecutable, "package", "--package-path", url.path, "describe", "--type", "json"])
     guard result.0 == 0 else {
         failures += 1
         print("FAIL \(identity): swift package describe exited \(result.0)")

@@ -47,6 +47,8 @@ jobs:
           xcodebuild -version
           swift --version
           "$HOME/.local/bin/stupid-app" --version
+          xcode-select -p
+          xcrun --find swift
 
       - name: Run core tests
         shell: bash
@@ -58,13 +60,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift scripts/diagnose-swiftpm.swift
+          swift scripts/diagnose-swiftpm.swift "$(xcrun --find swift)"
 
       - name: Build unsigned iOS app
         shell: bash
         run: |
           set -euo pipefail
-          stupid-app build --configuration release 2>&1 | tee "$RUNNER_TEMP/void-build.log"
+          stupid-app build --swift "$(xcrun --find swift)" --configuration release 2>&1 | tee "$RUNNER_TEMP/void-build.log"
 
           APP_PATH="$(awk -F ' at ' '/^Built .*\.app at / {print $NF}' "$RUNNER_TEMP/void-build.log" | tail -n 1)"
           if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then
