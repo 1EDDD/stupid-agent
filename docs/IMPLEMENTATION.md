@@ -13,6 +13,16 @@
 - **Retry:** drops the failed responses at the end of the agent's transcript (keeping its leading system message), then calls `continueRun()`.
 - **Stop:** `Agent.abort()`. It also declines a pending file-change request.
 
+## VOID research profile
+
+- `VOIDResearchProfile.instructions` is appended to the general system prompt for every conversation.
+- The profile sets the focus to iOS kernel and sandbox security, with authorization-first research, read-only-first inspection, stable-only guidance, evidence requirements and a consistent report structure.
+- It records the user's declared target baseline (iPhone 17 Pro Max, iOS 27.0.0) but explicitly forbids treating that as verified runtime state.
+- It explains the actual tool boundary: no shell or native kernel test runner is currently included; JavaScript is limited to calculations and workspace-only processing. The agent must label tests it could not execute as NOT RUN.
+- This is model guidance, not an enforcement boundary. Existing settings, tool implementations and file-change approval remain the actual permission controls.
+- The app display name and workspace label are VOID. The bundle identifier and App Group identifier are intentionally unchanged to preserve signing and container-bridge configuration.
+- This change does not add a dynamic device test runner, verify iOS 27.0.0 compatibility, or claim that a build or `swift test` has been run.
+
 ## Web and JavaScript tools
 
 - **Source:** swift pi's `webTools` (`web_search`, `web_fetch`) and `javaScriptTool`, added to the session's tools beside the file and sqlite tools (`AgentSession.tools`).

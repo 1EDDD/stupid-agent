@@ -30,7 +30,7 @@ final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatBut
     private(set) var messages: [ChatMessage] = []
     private var following = false
 
-    static let agentUser = ChatUser(id: "agent", name: "stupid agent", avatarURL: nil)
+    static let agentUser = ChatUser(id: "agent", name: "VOID", avatarURL: nil)
     static let user = ChatUser(id: "you", name: "You", avatarURL: nil)
     static let system = ChatUser(id: "system", name: nil, avatarURL: nil, isSystem: true)
     static let retryButton = ChatMessageButton(id: "retry", title: "Retry", action: .press)
@@ -79,7 +79,7 @@ final class AgentChatAdapter: ChatAdapter, ChatLiveUpdating, ChatTyping, ChatBut
     var typingNames: [String] {
         // The agent "types" while it works and nothing of its reply shows yet.
         guard session.isRunning, session.streamingMessage == nil, session.runningToolCalls.isEmpty else { return [] }
-        return [Self.agentUser.name ?? "stupid agent"]
+        return [Self.agentUser.name ?? "VOID"]
     }
 
     /// While the agent is working, the composer's send button becomes a stop button. `observe()` already tracks

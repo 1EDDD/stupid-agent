@@ -106,7 +106,7 @@ final class AppModel {
         # Welcome
 
         This folder is the agent's workspace. The agent can read, create and edit files here, and you can see \
-        them in the Files app under On My iPhone → stupid agent.
+        them in the Files app under On My iPhone → VOID.
         """
         try? Data(text.utf8).write(to: welcome, options: .withoutOverwriting)
         UserDefaults.standard.set(true, forKey: marker)

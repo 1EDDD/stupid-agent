@@ -80,7 +80,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Workspace")
                 } footer: {
-                    Text("The agent works in this app's folder, which you can open in the Files app under On My iPhone → stupid agent.")
+                    Text("The agent works in this app's folder, which you can open in the Files app under On My iPhone → VOID.")
                     if settings.allowOtherApps {
                         Text("The agent can also read and write files in other apps' containers. Requires iOS 26 or later on a real device.")
                     }

@@ -1,66 +1,60 @@
-# stupid agent
+# VOID
 
-An iOS app for a bring-your-own-model agent that runs on the device: the user sets an OpenAI-compatible server, key
-and model, and the agent executes tool calls on the phone against the app's workspace folder. Built on swift pi
-(github.com/stephancill/swift-pi), a Swift port of pi.
+An iOS security research assistant built on the stupid-agent app architecture. It uses a user-configured OpenAI-compatible model and the iPhone tools already available to the app.
 
 ## Before changing anything
 
-- Read `docs/PLAN.md` for product direction and `docs/IMPLEMENTATION.md` for the current state and decisions.
-- Agent behavior (loop, providers, tools) belongs in swift pi, not here: change it in `../swift-pi`, tag a release
-  (`vX.Y.Z`), then `swift package update swift-pi` here (raise `from:` when the app needs the new version) and commit
-  `Package.resolved`. Chat screen behavior belongs in stupid chatkit (`../stupid-chatkit`), released the same way.
+- Read `docs/PLAN.md` and `docs/IMPLEMENTATION.md`.
+- Agent behavior belongs in swift pi; update the dependency through a stable release and commit `Package.resolved`. Chat behavior belongs in stupid chatkit.
+- Keep `Sources/StupidAgentCore/VOIDResearchProfile.swift` aligned with the real tools. Prompt instructions are not a substitute for code-level permission checks.
 
 ## Project structure
 
 ```
 Sources/
-  StupidAgent/            # SwiftUI screens (iOS only)
-    StupidAgent.swift     # @main and AppModel: settings, workspace, sessions, conversation list
+  StupidAgent/              # SwiftUI screens (iOS only)
+    StupidAgent.swift
     ConversationsView.swift
-    AgentChatView.swift   # Chat screen: stupid chatkit's chat, Stop, the file-change alert
-    AgentChatAdapter.swift # ChatAdapter: session entries → chat kit messages, sends through the session
-    SettingsView.swift    # Bring-your-own-model settings
-    SandboxBridge.swift   # Sandbox extensions for other apps' containers (worse_query technique)
-    SandboxContainers.swift # Container discovery and grants, as AppContainerAccess; background inode-scan index
-    ContainerIndex.swift  # @Observable over the background index, for the Settings progress UI
-  StupidAgentCore/        # No UI; tested with `swift test` on macOS
-    ModelSettings.swift   # Provider presets, ModelSettings, SettingsStore, model listing
+    AgentChatView.swift
+    AgentChatAdapter.swift
+    SettingsView.swift
+    SandboxBridge.swift     # Existing worse_query-style container bridge
+    SandboxContainers.swift
+    ContainerIndex.swift
+  StupidAgentCore/
+    VOIDResearchProfile.swift
+    ModelSettings.swift
     Keychain.swift
     ConversationStore.swift
-    ChatEntries.swift     # Transcript → chat entries (user, agent response with thinking and tools, notices)
-    AppContainers.swift   # AppContainer, AppContainerAccess, container paths and tools
-    SQLiteTool.swift      # Read-only SQLite query tool
-    AgentSession.swift    # One conversation: the swift pi Agent, file-change approvals, saving
+    ChatEntries.swift
+    AppContainers.swift
+    SQLiteTool.swift
+    AgentSession.swift
 Tests/StupidAgentCoreTests/
 ```
 
-Keep this section in sync when files are added, moved or renamed.
-
 ## Stack and style
 
-- Swift 6, SwiftUI, Observation, iOS 18. Built and run with the `stupid-app` CLI (0.0.27 or later, which resolves
-  package dependencies).
-- Dependencies are package dependencies pinned in `Package.resolved`:
-  - swift pi (`https://github.com/stephancill/swift-pi`)
-  - stupid chatkit (`https://github.com/stephancill/stupid-chatkit`), iOS-only through a platform condition so
-    `swift test` builds on macOS
-- The chat screen is chatkit's: extend it through the adapter, and change chatkit itself in `../stupid-chatkit` (see its
-  AGENTS.md). While working on a dependency, point at a local checkout with `.package(path:)`, but never commit that.
-- Follow the stupid iOS design rules: native components, no monospaced fonts, at most two font sizes per group,
-  centered `.alert` confirmations for destructive actions.
-- UI files are wrapped in `#if os(iOS)` so `swift test` can build the package on macOS.
-- Prefer failing loudly over fallbacks. The one deliberate exception is the simulator-only API key storage in
-  `SettingsStore` (see `docs/IMPLEMENTATION.md`).
-- Named parameters, value types, `@MainActor @Observable` for UI state.
+- Swift 6, SwiftUI, Observation, iOS 18.
+- Use stable package releases only. No alpha, beta or nightly dependencies on the stable branch.
+- Preserve the existing bundle identifier and App Group identifier unless a migration is deliberately planned; the App Group is tied to signing and the sandbox bridge.
+- Read `docs/IMPLEMENTATION.md` before changing the bridge. It uses private APIs and has device/OS-specific behavior.
 
-## Build, test, run
+## Security and testing boundaries
 
-- `swift test` runs the core tests.
-- `stupid-app build` after source changes; `stupid-app run --simulator` to install. Follow the simulator claim rules in
-  the user's global instructions before using a simulator.
+- Test only devices, apps, accounts and data the user owns or is explicitly authorized to assess.
+- Treat other-app container inspection as read-only by default. Keep `Access Other Apps` off unless the user enables it, and keep file-change approval enabled.
+- The worse_query-style bridge grants access to particular containers. It is not root, arbitrary filesystem access, kernel privilege or process injection.
+- Prefer static analysis, crash-log triage, patch review and isolated test harnesses. Do not add stealth, persistence, exploit chains, entitlement/signing bypasses or third-party process injection.
+- Never claim a live-device test ran unless it actually ran and evidence is available.
+
+## Build and test
+
+- `swift test` runs core tests.
+- `stupid-app build` builds the app.
+- Do not claim a build or device test passed unless it was run.
 
 ## Before committing
 
-- Update `docs/IMPLEMENTATION.md` to describe the current state. Never include personal information: assume it is public.
-- Conventional commits (`feat:`, `fix:`, `chore:`, ...).
+- Update `docs/IMPLEMENTATION.md`; assume documentation is public and never include personal information.
+- Commit messages in this repository must be exactly `67`.

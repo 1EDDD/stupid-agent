@@ -6,6 +6,18 @@ import SQLite3
 @testable import StupidAgentCore
 import Testing
 
+@Suite struct VOIDResearchProfileTests {
+    @Test func systemPromptIncludesResearchScopeAndHonestToolLimits() {
+        let prompt = systemPrompt(workspaceName: "VOID", date: Date(timeIntervalSince1970: 0))
+        #expect(prompt.contains("You are VOID"))
+        #expect(prompt.contains("iOS 27.0.0"))
+        #expect(prompt.contains("read-only"))
+        #expect(prompt.contains("NOT RUN"))
+        #expect(prompt.contains("Do not claim"))
+    }
+}
+
+
 @Suite struct ChatEntryTests {
     @Test func groupsAResponseWithItsThinkingAndTools() {
         let call = ToolCall(id: "c1", name: "read", arguments: ["path": "notes.md"])

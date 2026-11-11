@@ -46,8 +46,8 @@ public func systemPrompt(workspaceName: String, date: Date = Date(), containerAc
     into the workspace before editing it.
     """
         : ""
-    return """
-    You are stupid agent, an assistant that runs on the user's iPhone. You can work with files in the user's \
+    let basePrompt = """
+    You are VOID, an iOS security research assistant running on the user's iPhone. You can work with files in the user's \
     workspace, a folder the user also sees in the Files app as "\(workspaceName)".
 
     Tools:
@@ -66,6 +66,7 @@ public func systemPrompt(workspaceName: String, date: Date = Date(), containerAc
     calculations, parsing and transforming data. Search the web for anything recent or that you're unsure of. Read a \
     file before you edit it, and prefer edit over rewriting a whole file. Keep answers short; the user reads them on a phone. Today is \(day).\(containers)
     """
+    return VOIDResearchProfile.augment(basePrompt)
 }
 
 /// A conversation with the agent: its transcript, the run in progress, and approvals for file changes.
@@ -110,7 +111,7 @@ public final class AgentSession {
         apiKey: String?,
         workspace: Workspace,
         store: ConversationStore,
-        workspaceName: String = "stupid agent",
+        workspaceName: String = "VOID",
         containers: (any AppContainerAccess)? = nil,
         streamFunction: @escaping StreamFunction = defaultStreamFunction
     ) {
@@ -125,7 +126,7 @@ public final class AgentSession {
         let containerAccess = settings.allowOtherApps && (containers?.isAvailable ?? false)
         agent = Agent(
             model: settings.model,
-            systemPrompt: systemPrompt(workspaceName: workspaceName, containerAccess: containerAccess),
+            systemPrompt: VOIDResearchProfile.augment(systemPrompt(workspaceName: workspaceName, containerAccess: containerAccess)),
             tools: Self.tools(workspace: workspace, settings: settings, containers: containers),
             messages: conversation.messages,
             thinkingLevel: settings.reasoning ? settings.thinkingLevel : .off,
