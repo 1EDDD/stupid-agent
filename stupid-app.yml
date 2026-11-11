@@ -9,3 +9,7 @@ capabilities:
   - entitlementKey: com.apple.security.application-groups
     type: APP_GROUPS
 iconPath: Resources/AppIcon.png
+extensions:
+  - product: VOIDKeyboard
+    bundleID: net.stupidtech.StupidAgent.keyboard
+    infoPath: VOIDKeyboard-Info.plist

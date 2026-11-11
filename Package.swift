@@ -10,6 +10,7 @@ let package = Package(
     products: [
         // A stupid-app project contains exactly one library product representing the application.
         .library(name: "StupidAgent", targets: ["StupidAgent"]),
+        .library(name: "VOIDKeyboard", targets: ["VOIDKeyboard"]),
     ],
     dependencies: [
         .package(url: "https://github.com/stephancill/stupid-chatkit", from: "0.5.0"),
@@ -21,9 +22,11 @@ let package = Package(
             "StupidAgentCore",
             .product(name: "PiAI", package: "swift-pi"),
             .product(name: "PiTools", package: "swift-pi"),
-            // iOS-only: the kit is UIKit, and `swift test` builds the package on macOS for the core tests.
+            // iOS-only: the kit is UIKit, and swift test builds the package on macOS for the core tests.
             .product(name: "StupidChatKit", package: "stupid-chatkit", condition: .when(platforms: [.iOS])),
         ]),
+        // iOS keyboard extension. Its AI engine is shared with the containing app.
+        .target(name: "VOIDKeyboard", dependencies: ["StupidAgentCore"]),
         // Settings, storage and the agent session, without UI.
         .target(name: "StupidAgentCore", dependencies: [
             .product(name: "PiAI", package: "swift-pi"),
