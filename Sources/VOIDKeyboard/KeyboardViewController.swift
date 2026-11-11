@@ -178,6 +178,13 @@ public final class KeyboardViewController: UIInputViewController {
             return
         }
 
+        // The system Foundation Model in the keyboard extension is deliberately kept light.
+        // Use the full Qwen3 model in VOID or through Ask VOID for Arabic requests.
+        if selected.unicodeScalars.contains(where: { (0x0600...0x06FF).contains(Int($0.value)) }) {
+            statusLabel.text = "للعربية استخدم VOID Local أو اختصار Ask VOID"
+            return
+        }
+
         isWorking = true
         statusLabel.text = "VOID يفكر محلياً…"
         Task { @MainActor [weak self] in

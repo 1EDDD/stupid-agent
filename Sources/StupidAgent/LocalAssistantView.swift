@@ -1,6 +1,7 @@
 #if os(iOS)
 import StupidAgentCore
 import SwiftUI
+import VOIDOnDeviceAI
 
 private struct LocalChatMessage: Identifiable {
     enum Role {
@@ -15,7 +16,7 @@ private struct LocalChatMessage: Identifiable {
 
 struct LocalAssistantView: View {
     @State private var messages: [LocalChatMessage] = [
-        LocalChatMessage(role: .assistant, text: "أنا VOID المحلي. أعمل على الجهاز نفسه، بدون مفتاح API أو اتصال بسيرفر.")
+        LocalChatMessage(role: .assistant, text: "أنا VOID المحلي. أعمل على جهازك باستخدام نموذج Qwen3، بدون مفتاح API أو رسوم لكل طلب.")
     ]
     @State private var prompt = ""
     @State private var isGenerating = false
@@ -23,9 +24,9 @@ struct LocalAssistantView: View {
 
     private let instructions = """
     You are VOID, a private on-device assistant running locally on an Apple device.
-    Respond in the language used by the user. Be accurate, practical, and concise.
-    You do not have internet access or external tools in this local mode. Never claim to have browsed,
-    accessed other apps, inspected the device, or executed an action unless the user supplied the evidence.
+    Reply in the same language as the user. You understand Arabic and English.
+    Be accurate, practical, and concise. You do not have internet access or external tools in this local mode.
+    Never claim to have browsed, accessed other apps, inspected the device, or executed an action unless the user supplied evidence.
     """
 
     var body: some View {
@@ -33,12 +34,12 @@ struct LocalAssistantView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "iphone.gen3.radiowaves.left.and.right")
-                    Text(VOIDLocalModel.availabilityDescription)
+                    Text(VOIDOnDeviceAI.availabilityDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
                     Circle()
-                        .fill(VOIDLocalModel.isAvailable ? Color.green : Color.orange)
+                        .fill(VOIDOnDeviceAI.isAvailable ? Color.green : Color.orange)
                         .frame(width: 8, height: 8)
                 }
                 .padding(.horizontal)
@@ -109,14 +110,9 @@ struct LocalAssistantView: View {
         messages.append(LocalChatMessage(role: .user, text: text))
         isGenerating = true
 
-        let context = messages.suffix(10).map { message in
-            let role = message.role == .user ? "User" : "VOID"
-            return "\(role): \(message.text)"
-        }.joined(separator: "\n")
-
         Task { @MainActor in
             do {
-                let answer = try await VOIDLocalModel.generate(prompt: context, instructions: instructions)
+                let answer = try await VOIDOnDeviceAI.generate(prompt: text, instructions: instructions)
                 messages.append(LocalChatMessage(role: .assistant, text: answer))
             } catch {
                 notice = error.localizedDescription
