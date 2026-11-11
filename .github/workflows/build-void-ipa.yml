@@ -1,0 +1,86 @@
+name: Build VOID IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-ipa-manual
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and package unsigned iOS IPA
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout VOID stable research branch
+        uses: actions/checkout@v4
+        with:
+          ref: void-stable-research
+
+      - name: Install stupid-app 0.0.27
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL \
+            -o "$HOME/.local/bin/stupid-app" \
+            https://github.com/stephancill/stupid-app-cli/releases/download/v0.0.27/stupid-app-macos-arm64
+          echo "03fdd1b57db94679785ca71fcd2738b6f40300506e977b89af9566433ae15be5  $HOME/.local/bin/stupid-app" | shasum -a 256 -c -
+          chmod +x "$HOME/.local/bin/stupid-app"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/stupid-app" --version
+
+      - name: Run core tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test
+
+      - name: Build unsigned iOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          stupid-app build --configuration release 2>&1 | tee "$RUNNER_TEMP/void-build.log"
+
+          APP_PATH="$(awk -F ' at ' '/^Built .*\.app at / {print $NF}' "$RUNNER_TEMP/void-build.log" | tail -n 1)"
+          if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then
+            echo "Could not locate the app bundle reported by stupid-app build."
+            find . -type d -name '*.app' -print
+            exit 1
+          fi
+
+          test -f "$APP_PATH/StupidAgent"
+          file "$APP_PATH/StupidAgent"
+          plutil -lint "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP_PATH/Info.plist"
+
+          mkdir -p "$RUNNER_TEMP/void-ipa/Payload"
+          ditto "$APP_PATH" "$RUNNER_TEMP/void-ipa/Payload/$(basename "$APP_PATH")"
+          (
+            cd "$RUNNER_TEMP/void-ipa"
+            /usr/bin/zip -qry "$GITHUB_WORKSPACE/VOID-unsigned.ipa" Payload
+          )
+          unzip -t "$GITHUB_WORKSPACE/VOID-unsigned.ipa"
+          shasum -a 256 "$GITHUB_WORKSPACE/VOID-unsigned.ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOID-unsigned-IPA
+          path: VOID-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOID-build-log
+          path: ${{ runner.temp }}/void-build.log
+          if-no-files-found: ignore
+          retention-days: 7
