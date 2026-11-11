@@ -126,7 +126,7 @@ public final class AgentSession {
         let containerAccess = settings.allowOtherApps && (containers?.isAvailable ?? false)
         agent = Agent(
             model: settings.model,
-            systemPrompt: VOIDResearchProfile.augment(systemPrompt(workspaceName: workspaceName, containerAccess: containerAccess)),
+            systemPrompt: systemPrompt(workspaceName: workspaceName, containerAccess: containerAccess),
             tools: Self.tools(workspace: workspace, settings: settings, containers: containers),
             messages: conversation.messages,
             thinkingLevel: settings.reasoning ? settings.thinkingLevel : .off,
