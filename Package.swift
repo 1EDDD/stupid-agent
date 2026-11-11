@@ -4,8 +4,8 @@ import PackageDescription
 let package = Package(
     name: "StupidAgent",
     platforms: [
-        .iOS(.v18),
-        .macOS(.v15),
+        .iOS(.v27),
+        .macOS(.v27),
     ],
     products: [
         // A stupid-app project contains exactly one library product representing the application.
