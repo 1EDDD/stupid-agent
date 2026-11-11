@@ -8,12 +8,12 @@ permissions:
 
 concurrency:
   group: void-ipa-manual
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     name: Test and package unsigned iOS IPA
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - name: Checkout VOID stable research branch
@@ -21,7 +21,7 @@ jobs:
         with:
           ref: void-stable-research
 
-      - name: Install stupid-app 0.0.27
+      - name: Verify Apple Silicon and install stupid-app 0.0.27
         shell: bash
         run: |
           set -euo pipefail
@@ -32,6 +32,9 @@ jobs:
           echo "03fdd1b57db94679785ca71fcd2738b6f40300506e977b89af9566433ae15be5  $HOME/.local/bin/stupid-app" | shasum -a 256 -c -
           chmod +x "$HOME/.local/bin/stupid-app"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uname -m
+          xcodebuild -version
+          swift --version
           "$HOME/.local/bin/stupid-app" --version
 
       - name: Run core tests
