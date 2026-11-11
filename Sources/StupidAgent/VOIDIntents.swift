@@ -5,9 +5,9 @@ import StupidAgentCore
 /// Makes the local VOID assistant callable from Siri, Shortcuts, Spotlight, and supported system surfaces.
 @available(iOS 26.0, *)
 struct AskVOIDIntent: AppIntent {
-    static var title: LocalizedStringResource = "Ask VOID"
-    static var description = IntentDescription("Ask the private on-device VOID assistant. No API key or network connection is required.")
-    static var openAppWhenRun = false
+    static let title: LocalizedStringResource = "Ask VOID"
+    static let description = IntentDescription("Ask the private on-device VOID assistant. No API key or network connection is required.")
+    static let openAppWhenRun = false
 
     @Parameter(title: "Prompt", description: "The question or instruction for VOID.")
     var prompt: String
