@@ -49,10 +49,15 @@ jobs:
           path.write_text(source.replace(old, "maxOutputBytes: Int = 5_000_000"))
           PY
           swift build --package-path "$RUNNER_TEMP/stupid-app-cli" --configuration release --product stupid-app
-          CLI_PATH="$(find "$RUNNER_TEMP/stupid-app-cli/.build" -type f -path '*/release/stupid-app' -perm -111 | head -n 1)"
-          test -n "$CLI_PATH"
-          test -x "$CLI_PATH"
-          echo "$(dirname "$CLI_PATH")" >> "$GITHUB_PATH"
+          BIN_DIR="$(swift build --package-path "$RUNNER_TEMP/stupid-app-cli" --configuration release --show-bin-path)"
+          CLI_PATH="$BIN_DIR/stupid-app"
+          if [[ ! -x "$CLI_PATH" ]]; then
+            echo "Built CLI executable was not found at: $CLI_PATH"
+            echo "SwiftPM binary directory: $BIN_DIR"
+            ls -la "$BIN_DIR"
+            exit 1
+          fi
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
           uname -m
           xcodebuild -version
           swift --version
