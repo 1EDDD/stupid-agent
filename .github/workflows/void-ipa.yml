@@ -10,6 +10,7 @@ on:
       - "Package.resolved"
       - "Sources/**"
       - "Tests/**"
+      - "scripts/**"
       - "Info.plist"
       - "App.entitlements"
       - "stupid-app.yml"
@@ -52,6 +53,12 @@ jobs:
         run: |
           set -euo pipefail
           swift test
+
+      - name: Diagnose SwiftPM package descriptions
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift scripts/diagnose-swiftpm.swift
 
       - name: Build unsigned iOS app
         shell: bash
