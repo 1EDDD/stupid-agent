@@ -30,7 +30,7 @@ let package = Package(
             .product(name: "StupidChatKit", package: "stupid-chatkit", condition: .when(platforms: [.iOS])),
         ]),
         // iOS keyboard extension. It deliberately does not link the large Qwen runtime.
-        .target(name: "VOIDKeyboard", dependencies: ["StupidAgentCore"]),
+        .target(name: "VOIDKeyboard", dependencies: []),
         // The app/Shortcuts model runtime is isolated from the keyboard extension's tighter memory budget.
         .target(name: "VOIDOnDeviceAI", dependencies: [
             .product(name: "CoreAIKit", package: "coreai-kit", condition: .when(platforms: [.iOS])),

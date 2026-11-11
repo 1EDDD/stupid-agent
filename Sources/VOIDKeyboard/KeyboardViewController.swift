@@ -1,5 +1,5 @@
 #if os(iOS)
-import StupidAgentCore
+import FoundationModels
 import UIKit
 
 @objc(KeyboardViewController)
@@ -161,6 +161,19 @@ public final class KeyboardViewController: UIInputViewController {
         transformSelection(task: "Translate the selected text into \(target). Preserve its meaning and tone. Return only the translation.")
     }
 
+    private func generateWithSystemModel(prompt: String, instructions: String) async throws -> String {
+        guard #available(iOS 26.0, *) else {
+            throw NSError(domain: "VOIDKeyboard", code: 26, userInfo: [NSLocalizedDescriptionKey: "يتطلب iOS 26 أو أحدث"])
+        }
+        let model = SystemLanguageModel.default
+        guard model.isAvailable else {
+            throw NSError(domain: "VOIDKeyboard", code: 27, userInfo: [NSLocalizedDescriptionKey: "نموذج Apple المحلي غير متاح على هذا الجهاز حالياً"])
+        }
+        let session = LanguageModelSession(instructions: instructions)
+        let response = try await session.respond(to: prompt)
+        return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func transformSelection(task: String) {
         guard !isWorking else { return }
         guard #available(iOS 26.0, *) else {
@@ -191,7 +204,7 @@ public final class KeyboardViewController: UIInputViewController {
             guard let self else { return }
             defer { isWorking = false }
             do {
-                let result = try await VOIDLocalModel.generate(
+                let result = try await generateWithSystemModel(
                     prompt: "\(task)\n\nSelected text:\n\(selected)",
                     instructions: "You are VOID Keyboard, a private on-device writing assistant. Return only the requested replacement text. Never add explanations or quotation marks."
                 )
