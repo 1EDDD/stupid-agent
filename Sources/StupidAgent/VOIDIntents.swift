@@ -24,8 +24,8 @@ struct VOIDAppShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: AskVOIDIntent(),
             phrases: [
-                "Ask (.applicationName)",
-                "Use (.applicationName)"
+                "Ask \\(.applicationName)",
+                "Use \\(.applicationName)"
             ],
             shortTitle: "Ask VOID",
             systemImageName: "sparkles"
