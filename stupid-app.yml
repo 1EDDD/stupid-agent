@@ -13,3 +13,4 @@ extensions:
   - product: VOIDKeyboard
     bundleID: net.stupidtech.StupidAgent.keyboard
     infoPath: VOIDKeyboard-Info.plist
+    entitlementsPath: VOIDKeyboard.entitlements
