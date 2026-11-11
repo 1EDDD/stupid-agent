@@ -37,6 +37,6 @@ public enum VOIDResearchProfile {
 
     /// Adds the research profile without replacing the base prompt's tool descriptions.
     public static func augment(_ basePrompt: String) -> String {
-        "\\(basePrompt)\\n\\n\\(instructions)"
+        "\(basePrompt)\n\n\(instructions)"
     }
 }
