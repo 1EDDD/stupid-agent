@@ -32,21 +32,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Apple Silicon and install stupid-app 0.0.27
+      - name: Build patched stupid-app CLI
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL \
-            -o "$HOME/.local/bin/stupid-app" \
-            https://github.com/stephancill/stupid-app-cli/releases/download/v0.0.27/stupid-app-macos-arm64
-          echo "03fdd1b57db94679785ca71fcd2738b6f40300506e977b89af9566433ae15be5  $HOME/.local/bin/stupid-app" | shasum -a 256 -c -
-          chmod +x "$HOME/.local/bin/stupid-app"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          git clone --depth 1 --branch v0.0.27 https://github.com/stephancill/stupid-app-cli.git "$RUNNER_TEMP/stupid-app-cli"
+          python3 - "$RUNNER_TEMP/stupid-app-cli/Sources/BuildCore/ProcessRunner.swift" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          source = path.read_text()
+          old = "maxOutputBytes: Int = 20_000"
+          if source.count(old) != 1:
+              raise SystemExit("Expected exactly one ProcessRunner output cap")
+          path.write_text(source.replace(old, "maxOutputBytes: Int = 5_000_000"))
+          PY
+          swift build --package-path "$RUNNER_TEMP/stupid-app-cli" --configuration release --product stupid-app
+          CLI_PATH="$(find "$RUNNER_TEMP/stupid-app-cli/.build" -type f -path '*/release/stupid-app' -perm -111 | head -n 1)"
+          test -n "$CLI_PATH"
+          test -x "$CLI_PATH"
+          echo "$(dirname "$CLI_PATH")" >> "$GITHUB_PATH"
           uname -m
           xcodebuild -version
           swift --version
-          "$HOME/.local/bin/stupid-app" --version
+          "$CLI_PATH" --version
           xcode-select -p
           xcrun --find swift
 
