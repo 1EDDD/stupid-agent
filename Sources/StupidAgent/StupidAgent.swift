@@ -1,4 +1,4 @@
-// The app is iOS-only; the guard lets `swift test` build the package on macOS for the core tests.
+// The app is iOS-only; the guard lets swift test build the package on macOS for the core tests.
 #if os(iOS)
 import Observation
 import PiTools
@@ -11,8 +11,17 @@ struct StupidAgentApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ConversationsView()
-                .environment(model)
+            TabView {
+                ConversationsView()
+                    .tabItem {
+                        Label("Research", systemImage: "bubble.left.and.bubble.right")
+                    }
+                LocalAssistantView()
+                    .tabItem {
+                        Label("VOID Local", systemImage: "sparkles")
+                    }
+            }
+            .environment(model)
         }
     }
 }
@@ -105,8 +114,7 @@ final class AppModel {
         let text = """
         # Welcome
 
-        This folder is the agent's workspace. The agent can read, create and edit files here, and you can see \
-        them in the Files app under On My iPhone → VOID.
+        This folder is the agent's workspace. The agent can read, create and edit files here, and you can see         them in the Files app under On My iPhone → VOID.
         """
         try? Data(text.utf8).write(to: welcome, options: .withoutOverwriting)
         UserDefaults.standard.set(true, forKey: marker)

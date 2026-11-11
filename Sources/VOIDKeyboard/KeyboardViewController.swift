@@ -30,15 +30,16 @@ public final class KeyboardViewController: UIInputViewController {
         rootStack.axis = .vertical
         rootStack.spacing = 6
         rootStack.distribution = .fill
-        rootStack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(rootStack)
-
-        NSLayoutConstraint.activate([
-            rootStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 5),
-            rootStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -5),
-            rootStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 7),
-            rootStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -7)
-        ])
+        if rootStack.superview == nil {
+            rootStack.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(rootStack)
+            NSLayoutConstraint.activate([
+                rootStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 5),
+                rootStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -5),
+                rootStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 7),
+                rootStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -7)
+            ])
+        }
 
         let actions = UIStackView()
         actions.axis = .horizontal
@@ -93,7 +94,11 @@ public final class KeyboardViewController: UIInputViewController {
     }
 
     private func actionButton(_ title: String, action: @escaping () -> Void) -> UIButton {
-        let button = keyButton(title)
+        let button = UIButton(type: .system)
+        button.setTitle(title, for: .normal)
+        button.setTitleColor(.label, for: .normal)
+        button.backgroundColor = .tertiarySystemFill
+        button.layer.cornerRadius = 7
         button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         return button
@@ -162,7 +167,8 @@ public final class KeyboardViewController: UIInputViewController {
             statusLabel.text = "يتطلب iOS 26 أو أحدث"
             return
         }
-        let selected = (textDocumentProxy.selectedText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawSelected = textDocumentProxy.selectedText ?? ""
+        let selected = rawSelected.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !selected.isEmpty else {
             statusLabel.text = "حدد النص أولاً من التطبيق"
             return
@@ -182,7 +188,7 @@ public final class KeyboardViewController: UIInputViewController {
                     prompt: "\(task)\n\nSelected text:\n\(selected)",
                     instructions: "You are VOID Keyboard, a private on-device writing assistant. Return only the requested replacement text. Never add explanations or quotation marks."
                 )
-                guard textDocumentProxy.selectedText == selected else {
+                guard textDocumentProxy.selectedText == rawSelected else {
                     statusLabel.text = "تغيّر التحديد، لم أعدّل النص"
                     return
                 }
